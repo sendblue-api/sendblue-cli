@@ -289,10 +289,45 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
                     console.log(`    ${line}`)
                 }
                 console.log()
-            }
 
-            console.log('  Once verified, send your first message:')
-            console.log(chalk.cyan(`    sendblue send ${normalized} 'Hello from Sendblue!'`))
+                // Poll for verification
+                const verifySpinner = ora({ text: `Waiting for ${formatPhoneNumber(normalized)} to text your number...`, indent: 2 }).start()
+                const POLL_INTERVAL = 3000
+                const TIMEOUT = 10 * 60 * 1000
+                const start = Date.now()
+                let verified = false
+
+                while (Date.now() - start < TIMEOUT) {
+                    await new Promise(r => setTimeout(r, POLL_INTERVAL))
+                    try {
+                        const check = await getSharedContacts(result.apiKey, result.apiSecret)
+                        const c = check.contacts.find(c => c.number === normalized || c.number === normalized.replace('+', ''))
+                        if (c?.verified) {
+                            verified = true
+                            break
+                        }
+                    } catch {
+                        // ignore polling errors, keep trying
+                    }
+                }
+
+                if (verified) {
+                    verifySpinner.succeed(`${formatPhoneNumber(normalized)} is verified!`)
+                    console.log()
+                    console.log(chalk.dim('  ── You\'re all set! ───────────────────────────'))
+                    console.log()
+                    console.log('  Send your first message:')
+                    console.log(chalk.cyan(`    sendblue send ${normalized} 'Hello from Sendblue!'`))
+                } else {
+                    verifySpinner.info('Timed out — but your account is ready!')
+                    console.log()
+                    console.log('  Once your contact texts your number, send them a message:')
+                    console.log(chalk.cyan(`    sendblue send ${normalized} 'Hello from Sendblue!'`))
+                }
+            } else {
+                console.log('  Once verified, send your first message:')
+                console.log(chalk.cyan(`    sendblue send ${normalized} 'Hello from Sendblue!'`))
+            }
         }
         console.log()
 
