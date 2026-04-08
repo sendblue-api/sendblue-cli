@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { basename } from 'node:path'
+
 const API_BASE = 'https://api.sendblue.com'
 const SETUP_BASE = 'https://dashboard.sendblue.com'
 
@@ -96,6 +99,35 @@ export async function sendMessage(
     }
 
     return res.json() as Promise<SendMessageResponse>
+}
+
+export async function uploadFile(
+    apiKey: string,
+    apiSecret: string,
+    filePath: string
+): Promise<string> {
+    const fileData = readFileSync(filePath)
+    const fileName = basename(filePath)
+
+    const formData = new FormData()
+    formData.append('file', new Blob([fileData]), fileName)
+
+    const res = await fetch(`${API_BASE}/api/upload-file`, {
+        method: 'POST',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        },
+        body: formData
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throw new Error((body.error as string) || (body.message as string) || `Upload failed (${res.status})`)
+    }
+
+    const data = await res.json() as { media_url: string }
+    return data.media_url
 }
 
 export async function getAccount(apiKey: string, apiSecret: string): Promise<AccountResponse> {

@@ -45,14 +45,14 @@ program
     .description('Send a message')
     .argument('<number>', 'Recipient phone number (E.164 format)')
     .argument('<message>', 'Message content')
-    .option('--media <url>', 'Attach a media URL (image, video, etc.)')
+    .option('--media <path>', 'Attach an image, video, or file (local path or URL)')
     .action(sendCommand)
 
 program
     .command('send-group')
     .description('Send a group message')
     .argument('<args...>', 'Phone numbers followed by message: <num1> <num2> [...] <message>')
-    .option('--media <url>', 'Attach a media URL')
+    .option('--media <path>', 'Attach an image, video, or file (local path or URL)')
     .action(sendGroupCommand)
 
 program

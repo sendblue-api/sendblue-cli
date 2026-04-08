@@ -2,109 +2,37 @@ import chalk from 'chalk'
 
 const blue = chalk.hex('#0088FF')
 
-/*
-export function printLogo(): void {
-    // Chat bubble with small satellite circle, matching Sendblue logo
-    const b = blue('█')
-    const h = blue('▀')
-    const l = blue('▄')
-    const logo = [
-        `                  ${l}${l}`,
-        `                ${l}${l}${l}${l}${l}${l}${l}  ${l}${l}${l}`,
-        `          ${l}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b} ${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b} ${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b} ${h}${h}${h}`,
-        `        ${l}${l}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `        ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `       ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `        ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `          ${h}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${h}`,
-        `            ${h}${h}${h} ${h}${h}${h}${h}${h}${h}${h} ${h}${h}`,
-        `                 ${h}${h}${h}${h}${h}`,
-    ]
-    for (const line of logo) {
-        console.log(`  ${line}`)
-    }
-    console.log()
-    console.log(blue.bold('                 sendblue'))
-    console.log(chalk.dim('            iMessage for agents'))
-    console.log()
-}
-*/
+const brailleLogoLines = [
+    '⠀⣠⣤⣴⣿⣷⢠⣤⡄⠀⠀⠀⣠⣤⣤⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡄⢠⡄⠀⠀⠀⠀⠀⣤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
+    '⢀⣿⣿⣿⣿⣿⣌⣛⡁⠀⠀⢸⣏⠀⠀⠹⠧⠀⢀⣠⣄⡀⠀⢀⡀⣀⣄⡀⠀⠀⣀⣤⣀⢸⡇⢸⡇⣀⣤⣀⠀⠀⣿⠀⣀⠀⠀⠀⣀⠀⢀⣀⣤⣀⠀',
+    '⣿⣿⣿⣿⣿⣿⣿⣿⣿⠆⠀⠈⠛⠻⠶⣦⡄⢰⣟⣉⣉⣻⡆⢸⡟⠉⠉⣿⡆⣼⠏⠉⠉⢻⡇⢸⡟⠉⠉⠙⣷⠀⣿⠀⣿⠀⠀⠀⣿⢀⣿⣉⣉⣙⣷',
+    '⠈⣿⣿⣿⣿⣿⣿⣿⡅⠀⠀⢺⣇⠀⠀⢨⣿⢸⣏⠉⠉⣉⡁⢸⡇⠀⠀⣿⡇⢿⣄⠀⠀⣸⡇⢸⣧⠀⠀⢠⣿⠀⣿⠀⣿⡀⠀⢠⣿⠈⣿⡉⠉⢉⡉',
+    '⠀⠙⠛⠻⣿⡿⠙⠋⠀⠀⠀⠀⠙⠛⠛⠛⠁⠀⠙⠛⠛⠋⠀⠘⠃⠀⠀⠛⠃⠈⠛⠛⠛⠙⠃⠘⠋⠛⠛⠛⠁⠀⠛⠀⠘⠛⠛⠉⠛⠀⠈⠛⠛⠛⠁',
+]
+
+const LOGO_MIN_COLS = 58
 
 export function printLogo(): void {
-    const lines = [
-        '███████╗███████╗███╗   ██╗██████╗',
-        '██╔════╝██╔════╝████╗  ██║██╔══██╗',
-        '███████╗█████╗  ██╔██╗ ██║██║  ██║',
-        '╚════██║██╔══╝  ██║╚██╗██║██║  ██║',
-        '███████║███████╗██║ ╚████║██████╔╝',
-        '╚══════╝╚══════╝╚═╝  ╚═══╝╚═════╝',
-        '',
-        '██████╗ ██╗     ██╗   ██╗███████╗',
-        '██╔══██╗██║     ██║   ██║██╔════╝',
-        '██████╔╝██║     ██║   ██║█████╗',
-        '██╔══██╗██║     ██║   ██║██╔══╝',
-        '██████╔╝███████╗╚██████╔╝███████╗',
-        '╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝',
-    ]
-    for (const line of lines) {
-        console.log(blue(line))
+    if ((process.stdout.columns || 80) >= LOGO_MIN_COLS) {
+        for (const line of brailleLogoLines) {
+            console.log(`  ${blue(line)}`)
+        }
+        console.log()
     }
-    console.log()
-    console.log(chalk.dim('       iMessage for agents'))
+    console.log(chalk.dim('         iMessage for agents'))
     console.log()
 }
 
-/*
 export function getLogo(): string {
-    const b = blue('█')
-    const h = blue('▀')
-    const l = blue('▄')
+    if ((process.stdout.columns || 80) < LOGO_MIN_COLS) {
+        return '\n' + chalk.dim('         iMessage for agents') + '\n'
+    }
     const lines = [
-        `                  ${l}${l}`,
-        `                ${l}${l}${l}${l}${l}${l}${l}  ${l}${l}${l}`,
-        `          ${l}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b} ${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b} ${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b} ${h}${h}${h}`,
-        `        ${l}${l}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `        ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `       ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `        ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `          ${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}`,
-        `          ${h}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${b}${h}`,
-        `            ${h}${h}${h} ${h}${h}${h}${h}${h}${h}${h} ${h}${h}`,
-        `                 ${h}${h}${h}${h}${h}`,
-        ``,
-        blue.bold('                 Sendblue'),
-        chalk.dim('            iMessage for agents'),
-    ]
-    return '\n' + lines.map(l => `  ${l}`).join('\n') + '\n'
-}
-*/
-
-export function getLogo(): string {
-    const lines = [
-        '███████╗███████╗███╗   ██╗██████╗',
-        '██╔════╝██╔════╝████╗  ██║██╔══██╗',
-        '███████╗█████╗  ██╔██╗ ██║██║  ██║',
-        '╚════██║██╔══╝  ██║╚██╗██║██║  ██║',
-        '███████║███████╗██║ ╚████║██████╔╝',
-        '╚══════╝╚══════╝╚═╝  ╚═══╝╚═════╝',
+        ...brailleLogoLines.map(l => `  ${blue(l)}`),
         '',
-        '██████╗ ██╗     ██╗   ██╗███████╗',
-        '██╔══██╗██║     ██║   ██║██╔════╝',
-        '██████╔╝██║     ██║   ██║█████╗',
-        '██╔══██╗██║     ██║   ██║██╔══╝',
-        '██████╔╝███████╗╚██████╔╝███████╗',
-        '╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝',
-        '',
-        chalk.dim('       iMessage for agents'),
+        chalk.dim('         iMessage for agents'),
     ]
-    return '\n' + lines.map(l => blue(l)).join('\n') + '\n'
+    return '\n' + lines.join('\n') + '\n'
 }
 
 export function normalizeNumber(input: string): string {
