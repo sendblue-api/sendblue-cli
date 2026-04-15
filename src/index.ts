@@ -14,6 +14,7 @@ import { typingCommand } from './commands/typing.js'
 import { linesCommand } from './commands/lines.js'
 import { webhooksListCommand, webhooksAddCommand, webhooksRemoveCommand } from './commands/webhooks.js'
 import { showKeysCommand } from './commands/show-keys.js'
+import { totpAddCommand, totpListCommand, totpCodeCommand, totpRemoveCommand } from './commands/totp.js'
 import { getLogo } from './lib/format.js'
 
 const require = createRequire(import.meta.url)
@@ -108,6 +109,34 @@ webhooks
     .argument('<url>', 'Webhook URL')
     .requiredOption('--type <type>', 'Event type')
     .action(webhooksRemoveCommand)
+
+const totp = program
+    .command('totp')
+    .description('Manage TOTP (2FA) secrets')
+
+totp
+    .command('add')
+    .description('Store a new TOTP secret')
+    .option('--label <label>', 'Label for this secret (e.g. "GitHub")')
+    .option('--uri <uri>', 'otpauth:// URI from a QR code')
+    .option('--secret <secret>', 'Base32 TOTP secret (if no URI)')
+    .option('--issuer <issuer>', 'Issuer name (e.g. "GitHub")')
+    .action(totpAddCommand)
+
+totp
+    .command('list')
+    .description('List stored TOTP secrets')
+    .action(totpListCommand)
+
+totp
+    .command('code <secret-id>')
+    .description('Get the current TOTP code for a secret')
+    .action(totpCodeCommand)
+
+totp
+    .command('remove <secret-id>')
+    .description('Delete a stored TOTP secret')
+    .action(totpRemoveCommand)
 
 program
     .command('status')
