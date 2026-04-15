@@ -3,8 +3,8 @@ import { resolve } from 'node:path'
 import chalk from 'chalk'
 import ora from 'ora'
 import { getCredentials } from '../lib/config.js'
-import { sendMessage, uploadFile } from '../lib/api.js'
-import { normalizeNumber, printError } from '../lib/format.js'
+import { sendMessage, uploadFile, getSharedContacts } from '../lib/api.js'
+import { formatPhoneNumber, normalizeNumber, printError } from '../lib/format.js'
 
 interface SendOptions {
     media?: string
@@ -46,7 +46,29 @@ export async function sendCommand(number: string, message: string, opts: SendOpt
             console.log(chalk.dim(`  Message ID: ${result.messageId}`))
         }
     } catch (err) {
-        spinner.fail(`Send failed: ${err instanceof Error ? err.message : String(err)}`)
+        const msg = err instanceof Error ? err.message : String(err)
+        spinner.fail(`Send failed: ${msg}`)
+
+        // Check if this is likely a verification issue and give actionable guidance
+        try {
+            const contacts = await getSharedContacts(creds.apiKey, creds.apiSecret)
+            const match = contacts.contacts.find((c: { number: string }) => c.number === normalized || c.number === number)
+            if (!match) {
+                console.log()
+                console.log(chalk.yellow(`  ${formatPhoneNumber(normalized)} is not in your contacts.`))
+                console.log(`  Add them first: ${chalk.cyan(`sendblue add-contact ${normalized}`)}`)
+                console.log()
+            } else if (!match.verified) {
+                console.log()
+                console.log(chalk.yellow(`  ${formatPhoneNumber(normalized)} is not verified yet.`))
+                if (contacts.sharedNumber) {
+                    console.log(`  They need to text ${chalk.cyan(formatPhoneNumber(contacts.sharedNumber))} first.`)
+                }
+                console.log()
+            }
+        } catch {
+            // Contacts check failed — just show the original error
+        }
         process.exit(1)
     }
 }

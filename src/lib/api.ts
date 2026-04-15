@@ -95,7 +95,11 @@ export async function sendMessage(
 
     if (!res.ok) {
         const body = await res.json().catch(() => ({})) as Record<string, unknown>
-        throw new Error((body.error as string) || (body.message as string) || `Send failed (${res.status})`)
+        const detail = (body.error as string) || (body.message as string) || (body.error_message as string)
+        if (detail) {
+            throw new Error(detail)
+        }
+        throw new Error(`Send failed (${res.status}). Run \`sendblue contacts\` to check if the recipient is verified.`)
     }
 
     return res.json() as Promise<SendMessageResponse>
