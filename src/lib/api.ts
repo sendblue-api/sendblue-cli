@@ -455,7 +455,7 @@ export async function totpAddSecret(
     })
     if (!res.ok) {
         const body = await res.json().catch(() => ({})) as Record<string, unknown>
-        throw new Error((body.message as string) || `Failed to add TOTP secret (${res.status})`)
+        throw new Error((body.message as string) || (body.error as string) || `Failed to add TOTP secret (${res.status})`)
     }
     const data = await res.json() as { totp_secret: TotpSecret & { secret: string } }
     return data.totp_secret
@@ -474,7 +474,7 @@ export async function totpListSecrets(
     })
     if (!res.ok) {
         const body = await res.json().catch(() => ({})) as Record<string, unknown>
-        throw new Error((body.message as string) || `Failed to list TOTP secrets (${res.status})`)
+        throw new Error((body.message as string) || (body.error as string) || `Failed to list TOTP secrets (${res.status})`)
     }
     const data = await res.json() as { totp_secrets: TotpSecret[] }
     return data.totp_secrets
@@ -484,7 +484,7 @@ export async function totpGetCode(
     apiKey: string,
     apiSecret: string,
     secretId: string
-): Promise<{ code: string; expires_in: number }> {
+): Promise<{ status: string; code: string; expires_in: number }> {
     const res = await fetch(`${API_BASE}/api/v2/totp/code/${secretId}`, {
         method: 'GET',
         headers: {
@@ -494,7 +494,7 @@ export async function totpGetCode(
     })
     if (!res.ok) {
         const body = await res.json().catch(() => ({})) as Record<string, unknown>
-        throw new Error((body.message as string) || `Failed to get TOTP code (${res.status})`)
+        throw new Error((body.message as string) || (body.error as string) || `Failed to get TOTP code (${res.status})`)
     }
     return res.json() as Promise<{ code: string; expires_in: number }>
 }
@@ -513,7 +513,7 @@ export async function totpDeleteSecret(
     })
     if (!res.ok) {
         const body = await res.json().catch(() => ({})) as Record<string, unknown>
-        throw new Error((body.message as string) || `Failed to delete TOTP secret (${res.status})`)
+        throw new Error((body.message as string) || (body.error as string) || `Failed to delete TOTP secret (${res.status})`)
     }
 }
 
