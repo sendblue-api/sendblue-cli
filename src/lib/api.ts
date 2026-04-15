@@ -427,6 +427,96 @@ export async function deleteWebhook(
     }
 }
 
+// --- TOTP ---
+
+export interface TotpSecret {
+    id: string
+    label: string
+    issuer: string | null
+    algorithm: string
+    digits: number
+    period: number
+    created_at: string
+}
+
+export async function totpAddSecret(
+    apiKey: string,
+    apiSecret: string,
+    opts: { label?: string; uri?: string; secret?: string; issuer?: string }
+): Promise<TotpSecret & { secret: string }> {
+    const res = await fetch(`${API_BASE}/api/v2/totp/secrets`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        },
+        body: JSON.stringify(opts)
+    })
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throw new Error((body.message as string) || (body.error as string) || `Failed to add TOTP secret (${res.status})`)
+    }
+    const data = await res.json() as { totp_secret: TotpSecret & { secret: string } }
+    return data.totp_secret
+}
+
+export async function totpListSecrets(
+    apiKey: string,
+    apiSecret: string
+): Promise<TotpSecret[]> {
+    const res = await fetch(`${API_BASE}/api/v2/totp/secrets`, {
+        method: 'GET',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        }
+    })
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throw new Error((body.message as string) || (body.error as string) || `Failed to list TOTP secrets (${res.status})`)
+    }
+    const data = await res.json() as { totp_secrets: TotpSecret[] }
+    return data.totp_secrets
+}
+
+export async function totpGetCode(
+    apiKey: string,
+    apiSecret: string,
+    secretId: string
+): Promise<{ status: string; code: string; expires_in: number }> {
+    const res = await fetch(`${API_BASE}/api/v2/totp/code/${secretId}`, {
+        method: 'GET',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        }
+    })
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throw new Error((body.message as string) || (body.error as string) || `Failed to get TOTP code (${res.status})`)
+    }
+    return res.json() as Promise<{ status: string; code: string; expires_in: number }>
+}
+
+export async function totpDeleteSecret(
+    apiKey: string,
+    apiSecret: string,
+    secretId: string
+): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/v2/totp/secrets/${secretId}`, {
+        method: 'DELETE',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        }
+    })
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throw new Error((body.message as string) || (body.error as string) || `Failed to delete TOTP secret (${res.status})`)
+    }
+}
+
 export async function testKeys(apiKey: string, apiSecret: string): Promise<boolean> {
     try {
         const res = await fetch(`${API_BASE}/account`, {
