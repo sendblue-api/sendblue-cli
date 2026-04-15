@@ -1,6 +1,6 @@
 {
   "name": "@sendblue/cli",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Sendblue CLI — iMessage numbers for agents",
   "type": "module",
   "bin": {
