@@ -496,7 +496,7 @@ export async function totpGetCode(
         const body = await res.json().catch(() => ({})) as Record<string, unknown>
         throw new Error((body.message as string) || (body.error as string) || `Failed to get TOTP code (${res.status})`)
     }
-    return res.json() as Promise<{ code: string; expires_in: number }>
+    return res.json() as Promise<{ status: string; code: string; expires_in: number }>
 }
 
 export async function totpDeleteSecret(
