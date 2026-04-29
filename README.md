@@ -91,6 +91,16 @@ List all contacts and their verification status.
 
 Check your account status and plan.
 
+### `sendblue upgrade`
+
+Upgrade a free API account to the AI agent plan. Opens Stripe Checkout, where customers can pay with Link when Link is enabled for Sendblue in Stripe.
+
+```bash
+sendblue upgrade
+sendblue upgrade --poll      # wait for dedicated number provisioning
+sendblue upgrade --no-open   # print checkout URL only
+```
+
 ### `sendblue whoami`
 
 Show current credentials and verify they're valid.

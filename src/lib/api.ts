@@ -28,6 +28,16 @@ interface AccountResponse {
     [key: string]: unknown
 }
 
+interface CheckoutSessionResponse {
+    url: string
+}
+
+interface ProvisioningStatusResponse {
+    status: 'pending' | 'complete' | string
+    newNumber?: string
+    [key: string]: unknown
+}
+
 export async function sendCode(email: string): Promise<void> {
     const res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
         method: 'POST',
@@ -69,6 +79,42 @@ export async function verifyLogin(email: string, code: string): Promise<SetupRes
     }
 
     return res.json() as Promise<SetupResponse>
+}
+
+export async function createCheckoutSession(
+    email: string,
+    accountId: string
+): Promise<CheckoutSessionResponse> {
+    const res = await fetch(`${SETUP_BASE}/api/v3/billing/create-checkout-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email,
+            accountId,
+            returnPath: '/developer-overview'
+        })
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throw new Error((body.error as string) || (body.message as string) || `Failed to create checkout session (${res.status})`)
+    }
+
+    return res.json() as Promise<CheckoutSessionResponse>
+}
+
+export async function getProvisioningStatus(accountId: string): Promise<ProvisioningStatusResponse> {
+    const params = new URLSearchParams({ accountId })
+    const res = await fetch(`${SETUP_BASE}/api/v3/billing/provisioning-status?${params}`, {
+        method: 'GET'
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throw new Error((body.error as string) || (body.message as string) || `Failed to get provisioning status (${res.status})`)
+    }
+
+    return res.json() as Promise<ProvisioningStatusResponse>
 }
 
 export async function sendMessage(

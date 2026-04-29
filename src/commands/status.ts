@@ -21,6 +21,9 @@ export async function statusCommand(): Promise<void> {
         console.log(chalk.bold('  Account Status'))
         console.log()
         console.log(`  ${chalk.bold('Email')}:         ${creds.email}`)
+        if (creds.companyName) {
+            console.log(`  ${chalk.bold('Company')}:       ${creds.companyName}`)
+        }
         console.log(`  ${chalk.bold('Phone Number')}:  ${formatPhoneNumber(creds.assignedNumber)}`)
         console.log(`  ${chalk.bold('Plan')}:          ${account.plan || creds.plan}`)
         console.log()

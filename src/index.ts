@@ -8,6 +8,7 @@ import { sendCommand } from './commands/send.js'
 import { sendGroupCommand } from './commands/send-group.js'
 import { messagesCommand } from './commands/messages.js'
 import { statusCommand } from './commands/status.js'
+import { upgradeCommand } from './commands/upgrade.js'
 import { whoamiCommand } from './commands/whoami.js'
 import { addContactCommand, contactsCommand } from './commands/add-contact.js'
 import { typingCommand } from './commands/typing.js'
@@ -142,6 +143,13 @@ program
     .command('status')
     .description('Check your account status')
     .action(statusCommand)
+
+program
+    .command('upgrade')
+    .description('Upgrade to the AI agent plan with Stripe Checkout and Link')
+    .option('--no-open', 'Print the checkout URL without opening a browser')
+    .option('--poll', 'Wait for dedicated number provisioning after checkout')
+    .action(upgradeCommand)
 
 program
     .command('whoami')

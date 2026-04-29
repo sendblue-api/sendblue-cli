@@ -6,6 +6,7 @@ export interface SendblueCredentials {
     apiKey: string
     apiSecret: string
     email: string
+    companyName?: string
     assignedNumber: string
     plan: string
     createdAt: string

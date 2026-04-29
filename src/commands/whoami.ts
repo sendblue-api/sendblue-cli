@@ -26,6 +26,9 @@ export async function whoamiCommand(): Promise<void> {
     console.log(chalk.bold('  Current Account'))
     console.log()
     console.log(`  ${chalk.bold('Email')}:         ${creds.email}`)
+    if (creds.companyName) {
+        console.log(`  ${chalk.bold('Company')}:       ${creds.companyName}`)
+    }
     console.log(`  ${chalk.bold('Phone Number')}:  ${formatPhoneNumber(creds.assignedNumber)}`)
     console.log(`  ${chalk.bold('API Key')}:       ${creds.apiKey.slice(0, 8)}...`)
     console.log(`  ${chalk.bold('Plan')}:          ${creds.plan}`)

@@ -191,6 +191,7 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
         apiKey: result.apiKey,
         apiSecret: result.apiSecret,
         email: result.email,
+        companyName: result.companyName,
         assignedNumber: result.assignedNumber,
         plan: result.plan,
         createdAt: new Date().toISOString()
