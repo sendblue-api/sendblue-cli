@@ -5,13 +5,14 @@ import ora from 'ora'
 import { getCredentials } from '../lib/config.js'
 import { sendMessage, uploadFile, getSharedContacts } from '../lib/api.js'
 import { formatPhoneNumber, normalizeNumber, printError } from '../lib/format.js'
+import { refreshCredentialsFromProvisioning } from '../lib/refresh.js'
 
 interface SendOptions {
     media?: string
 }
 
 export async function sendCommand(number: string, message: string, opts: SendOptions): Promise<void> {
-    const creds = getCredentials()
+    let creds = getCredentials()
     if (!creds) {
         printError('No credentials found. Run `sendblue login` first.')
         process.exit(1)
@@ -36,6 +37,7 @@ export async function sendCommand(number: string, message: string, opts: SendOpt
             process.exit(1)
         }
     }
+    creds = (await refreshCredentialsFromProvisioning(creds)).credentials
 
     const spinner = ora({ text: `Sending to ${normalized}...`, indent: 2 }).start()
 

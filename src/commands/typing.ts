@@ -3,13 +3,15 @@ import ora from 'ora'
 import { getCredentials } from '../lib/config.js'
 import { sendTypingIndicator } from '../lib/api.js'
 import { normalizeNumber, printError } from '../lib/format.js'
+import { refreshCredentialsFromProvisioning } from '../lib/refresh.js'
 
 export async function typingCommand(number: string): Promise<void> {
-    const creds = getCredentials()
+    let creds = getCredentials()
     if (!creds) {
         printError('No credentials found. Run `sendblue login` first.')
         process.exit(1)
     }
+    creds = (await refreshCredentialsFromProvisioning(creds)).credentials
 
     const normalized = normalizeNumber(number)
     const spinner = ora({ text: `Sending typing indicator to ${normalized}...`, indent: 2 }).start()

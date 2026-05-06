@@ -3,9 +3,10 @@ import ora from 'ora'
 import { getCredentials } from '../lib/config.js'
 import { getAccount } from '../lib/api.js'
 import { formatPhoneNumber, printError } from '../lib/format.js'
+import { refreshCredentialsFromProvisioning } from '../lib/refresh.js'
 
 export async function statusCommand(): Promise<void> {
-    const creds = getCredentials()
+    let creds = getCredentials()
     if (!creds) {
         printError('No credentials found. Run `sendblue login` first.')
         process.exit(1)
@@ -14,6 +15,8 @@ export async function statusCommand(): Promise<void> {
     const spinner = ora({ text: 'Fetching account status...', indent: 2 }).start()
 
     try {
+        const refresh = await refreshCredentialsFromProvisioning(creds)
+        creds = refresh.credentials
         const account = await getAccount(creds.apiKey, creds.apiSecret)
         spinner.stop()
 
@@ -26,6 +29,9 @@ export async function statusCommand(): Promise<void> {
         }
         console.log(`  ${chalk.bold('Phone Number')}:  ${formatPhoneNumber(creds.assignedNumber)}`)
         console.log(`  ${chalk.bold('Plan')}:          ${account.plan || creds.plan}`)
+        if (refresh.refreshed) {
+            console.log(chalk.dim('  Local credentials refreshed from provisioning status.'))
+        }
         console.log()
     } catch (err) {
         spinner.fail(`Failed to fetch status: ${err instanceof Error ? err.message : String(err)}`)

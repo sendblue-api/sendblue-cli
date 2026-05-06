@@ -3,13 +3,14 @@ import ora from 'ora'
 import { getCredentials } from '../lib/config.js'
 import { sendGroupMessage } from '../lib/api.js'
 import { normalizeNumber, formatPhoneNumber, printError } from '../lib/format.js'
+import { refreshCredentialsFromProvisioning } from '../lib/refresh.js'
 
 interface SendGroupOptions {
     media?: string
 }
 
 export async function sendGroupCommand(numbers: string[], opts: SendGroupOptions): Promise<void> {
-    const creds = getCredentials()
+    let creds = getCredentials()
     if (!creds) {
         printError('No credentials found. Run `sendblue login` first.')
         process.exit(1)
@@ -24,6 +25,7 @@ export async function sendGroupCommand(numbers: string[], opts: SendGroupOptions
 
     const message = numbers[numbers.length - 1]
     const phoneNumbers = numbers.slice(0, -1).map(normalizeNumber)
+    creds = (await refreshCredentialsFromProvisioning(creds)).credentials
 
     const spinner = ora({ text: `Sending group message to ${phoneNumbers.length} recipients...`, indent: 2 }).start()
 

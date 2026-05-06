@@ -17,7 +17,7 @@ const onCancel = () => {
     process.exit(0)
 }
 
-function openUrl(url: string): boolean {
+function openUrl(url: string): Promise<boolean> {
     const command = process.platform === 'darwin'
         ? 'open'
         : process.platform === 'win32'
@@ -28,16 +28,31 @@ function openUrl(url: string): boolean {
         ? ['/c', 'start', '', url]
         : [url]
 
-    try {
-        const child = spawn(command, args, {
-            detached: true,
-            stdio: 'ignore'
-        })
-        child.unref()
-        return true
-    } catch {
-        return false
-    }
+    return new Promise(resolve => {
+        let settled = false
+        const finish = (opened: boolean) => {
+            if (!settled) {
+                settled = true
+                resolve(opened)
+            }
+        }
+
+        try {
+            const child = spawn(command, args, {
+                detached: true,
+                stdio: 'ignore'
+            })
+            child.once('error', () => finish(false))
+            child.once('exit', code => finish(code === 0))
+            const timer = setTimeout(() => {
+                child.unref()
+                finish(true)
+            }, 1000)
+            timer.unref()
+        } catch {
+            finish(false)
+        }
+    })
 }
 
 async function pollProvisioning(accountId: string): Promise<string | null> {
@@ -45,18 +60,25 @@ async function pollProvisioning(accountId: string): Promise<string | null> {
     const timeoutMs = 10 * 60 * 1000
     const pollMs = 10 * 1000
     const startedAt = Date.now()
+    let consecutiveErrors = 0
 
     while (Date.now() - startedAt < timeoutMs) {
         await new Promise(resolve => setTimeout(resolve, pollMs))
 
         try {
             const status = await getProvisioningStatus(accountId)
+            consecutiveErrors = 0
             if (status.status === 'complete') {
                 spinner.succeed('Dedicated number provisioned!')
                 return status.newNumber || null
             }
-        } catch {
-            // Keep polling through transient backend/Stripe webhook delays.
+        } catch (err) {
+            consecutiveErrors += 1
+            if (consecutiveErrors >= 3) {
+                const message = err instanceof Error ? err.message : String(err)
+                spinner.fail(`Provisioning status check failed: ${message}`)
+                return null
+            }
         }
     }
 
@@ -117,7 +139,7 @@ export async function upgradeCommand(opts: UpgradeOptions): Promise<void> {
     console.log(`  ${chalk.bold('Checkout')}: ${chalk.cyan(url)}`)
 
     if (!opts.noOpen) {
-        const opened = openUrl(url)
+        const opened = await openUrl(url)
         if (opened) {
             console.log(chalk.dim('  Opened checkout in your browser.'))
         } else {

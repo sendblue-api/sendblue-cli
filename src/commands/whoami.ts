@@ -3,9 +3,10 @@ import ora from 'ora'
 import { getCredentials, credentialsPath } from '../lib/config.js'
 import { testKeys } from '../lib/api.js'
 import { formatPhoneNumber, printError } from '../lib/format.js'
+import { refreshCredentialsFromProvisioning } from '../lib/refresh.js'
 
 export async function whoamiCommand(): Promise<void> {
-    const creds = getCredentials()
+    let creds = getCredentials()
     if (!creds) {
         printError('No credentials found. Run `sendblue login` first.')
         process.exit(1)
@@ -15,6 +16,8 @@ export async function whoamiCommand(): Promise<void> {
 
     let valid = false
     try {
+        const refresh = await refreshCredentialsFromProvisioning(creds)
+        creds = refresh.credentials
         valid = await testKeys(creds.apiKey, creds.apiSecret)
     } catch {
         // Network error — keys may still be valid
