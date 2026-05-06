@@ -15,7 +15,7 @@ export async function refreshCredentialsFromProvisioning(
 
     let status
     try {
-        status = await getProvisioningStatus(creds.companyName)
+        status = await getProvisioningStatus(creds.companyName, creds.apiKey, creds.apiSecret)
     } catch {
         return { credentials: creds, refreshed: false }
     }

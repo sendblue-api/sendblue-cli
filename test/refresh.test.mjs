@@ -47,8 +47,8 @@ test.after(() => {
 test('status refreshes local credentials after provisioning completes', async () => {
     writeCredentials()
     const requests = []
-    global.fetch = async (url) => {
-        requests.push(url.toString())
+    global.fetch = async (url, init = {}) => {
+        requests.push({ url: url.toString(), init })
         if (url.toString().includes('/api/v3/billing/provisioning-status')) {
             return jsonResponse({ status: 'complete', newNumber: '+15551112222' })
         }
@@ -66,7 +66,10 @@ test('status refreshes local credentials after provisioning completes', async ()
         assignedNumber: '+15551112222',
         plan: 'inbound_only'
     })
-    assert.ok(requests.some((url) => url.includes('/api/v3/billing/provisioning-status')))
+    const provisioningRequest = requests.find((request) => request.url.includes('/api/v3/billing/provisioning-status'))
+    assert.ok(provisioningRequest)
+    assert.equal(provisioningRequest.init.headers['sb-api-key-id'], 'key_123')
+    assert.equal(provisioningRequest.init.headers['sb-api-secret-key'], 'secret_123')
 })
 
 test('send refreshes before using assignedNumber as from_number', async () => {
@@ -74,6 +77,8 @@ test('send refreshes before using assignedNumber as from_number', async () => {
     let sendBody = null
     global.fetch = async (url, init = {}) => {
         if (url.toString().includes('/api/v3/billing/provisioning-status')) {
+            assert.equal(init.headers['sb-api-key-id'], 'key_123')
+            assert.equal(init.headers['sb-api-secret-key'], 'secret_123')
             return jsonResponse({ status: 'complete', newNumber: '+15553334444' })
         }
         if (url.toString() === 'https://api.sendblue.com/api/send-message') {

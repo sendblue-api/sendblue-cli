@@ -55,7 +55,7 @@ function openUrl(url: string): Promise<boolean> {
     })
 }
 
-async function pollProvisioning(accountId: string): Promise<string | null> {
+async function pollProvisioning(accountId: string, apiKey: string, apiSecret: string): Promise<string | null> {
     const spinner = ora({ text: 'Waiting for your dedicated number...', indent: 2 }).start()
     const timeoutMs = 10 * 60 * 1000
     const pollMs = 10 * 1000
@@ -66,18 +66,22 @@ async function pollProvisioning(accountId: string): Promise<string | null> {
         await new Promise(resolve => setTimeout(resolve, pollMs))
 
         try {
-            const status = await getProvisioningStatus(accountId)
+            const status = await getProvisioningStatus(accountId, apiKey, apiSecret)
             consecutiveErrors = 0
             if (status.status === 'complete') {
+                if (!status.newNumber) {
+                    spinner.fail('Provisioning completed but no dedicated number was returned.')
+                    throw new Error('Provisioning completed without a dedicated number.')
+                }
                 spinner.succeed('Dedicated number provisioned!')
-                return status.newNumber || null
+                return status.newNumber
             }
         } catch (err) {
             consecutiveErrors += 1
             if (consecutiveErrors >= 3) {
                 const message = err instanceof Error ? err.message : String(err)
                 spinner.fail(`Provisioning status check failed: ${message}`)
-                return null
+                throw err
             }
         }
     }
@@ -127,7 +131,12 @@ export async function upgradeCommand(opts: UpgradeOptions): Promise<void> {
 
     let url: string
     try {
-        const checkout = await createCheckoutSession(creds.email, creds.companyName)
+        const checkout = await createCheckoutSession(
+            creds.email,
+            creds.companyName,
+            creds.apiKey,
+            creds.apiSecret
+        )
         url = checkout.url
         checkoutSpinner.succeed('Checkout session created.')
     } catch (err) {
@@ -158,7 +167,13 @@ export async function upgradeCommand(opts: UpgradeOptions): Promise<void> {
         return
     }
 
-    const newNumber = await pollProvisioning(creds.companyName)
+    let newNumber: string | null
+    try {
+        newNumber = await pollProvisioning(creds.companyName, creds.apiKey, creds.apiSecret)
+    } catch (err) {
+        printError(err instanceof Error ? err.message : String(err))
+        process.exit(1)
+    }
     if (newNumber) {
         saveCredentials({
             ...creds,

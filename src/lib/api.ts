@@ -83,11 +83,17 @@ export async function verifyLogin(email: string, code: string): Promise<SetupRes
 
 export async function createCheckoutSession(
     email: string,
-    accountId: string
+    accountId: string,
+    apiKey: string,
+    apiSecret: string
 ): Promise<CheckoutSessionResponse> {
     const res = await fetch(`${SETUP_BASE}/api/v3/billing/create-checkout-session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        },
         body: JSON.stringify({
             email,
             accountId,
@@ -103,10 +109,18 @@ export async function createCheckoutSession(
     return res.json() as Promise<CheckoutSessionResponse>
 }
 
-export async function getProvisioningStatus(accountId: string): Promise<ProvisioningStatusResponse> {
+export async function getProvisioningStatus(
+    accountId: string,
+    apiKey: string,
+    apiSecret: string
+): Promise<ProvisioningStatusResponse> {
     const params = new URLSearchParams({ accountId })
     const res = await fetch(`${SETUP_BASE}/api/v3/billing/provisioning-status?${params}`, {
-        method: 'GET'
+        method: 'GET',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        }
     })
 
     if (!res.ok) {
