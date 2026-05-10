@@ -46,6 +46,7 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
     console.log(chalk.bold('  Welcome to Sendblue'))
     console.log(chalk.dim('  Send and receive iMessages programmatically.'))
     console.log(chalk.dim('  Free to start — no credit card required.'))
+    console.log(chalk.dim('  Agent note: free-plan contacts must verify before agents can message them.'))
     console.log()
 
     // Check for existing credentials
@@ -212,7 +213,7 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
 
     if (result.plan === 'free_api') {
         console.log(chalk.dim('  On the free plan, contacts must verify by texting your'))
-        console.log(chalk.dim('  Sendblue number once before you can message them.'))
+        console.log(chalk.dim('  Sendblue number once before you or any agent can message them.'))
     } else {
         console.log(chalk.dim('  Enter the phone number you\'d like to message.'))
     }
@@ -242,6 +243,9 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
         console.log()
         console.log('  You can add contacts anytime:')
         console.log(chalk.cyan('    sendblue add-contact +15551234567'))
+        if (result.plan === 'free_api') {
+            console.log(chalk.dim('  Agent note: added contacts must text your Sendblue number once to verify.'))
+        }
         console.log()
         console.log('  Then send your first message:')
         console.log(chalk.cyan('    sendblue send +15551234567 \'Hello from Sendblue!\''))
@@ -280,6 +284,7 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
             console.log()
             console.log(chalk.cyan.bold(`    ${formatPhoneNumber(sharedNumber)}`))
             console.log(chalk.dim('    (any message works — "hi" is fine)'))
+            console.log(chalk.dim('    Free-plan requirement: agents cannot send to this contact until this text verifies them.'))
             console.log()
 
             if (!nonInteractive) {
@@ -323,10 +328,14 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
                     verifySpinner.info('Timed out — but your account is ready!')
                     console.log()
                     console.log('  Once your contact texts your number, send them a message:')
+                    console.log(chalk.dim('  Agent note: wait for verification before asking an agent to send.'))
                     console.log(chalk.cyan(`    sendblue send ${normalized} 'Hello from Sendblue!'`))
                 }
             } else {
                 console.log('  Once verified, send your first message:')
+                if (result.plan === 'free_api') {
+                    console.log(chalk.dim('  Agent note: the contact must text your Sendblue number first.'))
+                }
                 console.log(chalk.cyan(`    sendblue send ${normalized} 'Hello from Sendblue!'`))
             }
         }

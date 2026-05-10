@@ -2,6 +2,8 @@
 
 iMessage numbers for AI agents. Set up an iMessage-enabled phone number and start sending messages in under a minute.
 
+Free-plan note for agents: contacts added to a free API account must verify by texting your Sendblue number once before agents can send messages to them.
+
 ## Install
 
 ```bash
@@ -82,6 +84,8 @@ Add a contact to your account.
 ```bash
 sendblue add-contact +15551234567
 ```
+
+On the free plan, the contact must text your Sendblue/shared number once to verify before you or any agent can message them.
 
 ### `sendblue contacts`
 

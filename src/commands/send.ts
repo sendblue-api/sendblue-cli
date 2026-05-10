@@ -66,6 +66,7 @@ export async function sendCommand(number: string, message: string, opts: SendOpt
                 if (contacts.sharedNumber) {
                     console.log(`  They need to text ${chalk.cyan(formatPhoneNumber(contacts.sharedNumber))} first.`)
                 }
+                console.log(chalk.dim('  Free-plan note for agents: contacts must verify before messages can be sent.'))
                 console.log()
             }
         } catch {

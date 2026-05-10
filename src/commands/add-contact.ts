@@ -43,6 +43,7 @@ export async function addContactCommand(number: string): Promise<void> {
         const sharedNumber = contacts.sharedNumber
 
         console.log(chalk.bold('  To verify this contact:'))
+        console.log(chalk.dim('  Free-plan requirement: agents cannot message this contact until they verify.'))
         console.log()
         if (sharedNumber) {
             console.log(`  Have ${formatPhoneNumber(normalized)} send any text to:`)
@@ -63,7 +64,7 @@ export async function addContactCommand(number: string): Promise<void> {
             console.log(`  Have ${formatPhoneNumber(normalized)} text your Sendblue number.`)
         }
         console.log()
-        console.log(chalk.dim('  Once they text in, the contact is verified and you can send messages.'))
+        console.log(chalk.dim('  Once they text in, the contact is verified and you or your agents can send messages.'))
         console.log(chalk.dim(`  Check status with: sendblue contacts`))
         console.log()
 
@@ -111,6 +112,7 @@ export async function contactsCommand(): Promise<void> {
         if (pending.length > 0 && result.sharedNumber) {
             console.log()
             console.log(chalk.dim(`  Pending contacts need to text ${formatPhoneNumber(result.sharedNumber)} to verify.`))
+            console.log(chalk.dim('  Free-plan note for agents: do not send to pending contacts until verified.'))
         }
         console.log()
 
