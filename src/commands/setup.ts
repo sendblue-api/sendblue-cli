@@ -43,6 +43,7 @@ interface SetupOptions {
     email?: string
     code?: string
     company?: string
+    account?: string
     contact?: string
     phone?: string
     check?: string | boolean
@@ -50,6 +51,8 @@ interface SetupOptions {
 }
 
 export async function setupCommand(opts: SetupOptions): Promise<void> {
+    if (!opts.company && opts.account) opts.company = opts.account
+
     if (opts.check !== undefined) {
         const sessionId = typeof opts.check === 'string' ? opts.check : undefined
         return runPhoneCheckCommand(sessionId, 'setup')

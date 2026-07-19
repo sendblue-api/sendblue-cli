@@ -85,7 +85,7 @@ export function printVerifiedAccount(result: SetupResponse, flow: 'login' | 'set
     console.log()
     console.log(`  ${chalk.bold('Account')}:       ${result.companyName || result.email}`)
     if (result.assignedNumber) {
-        console.log(`  ${chalk.bold('Phone Number')}:  ${formatPhoneNumber(result.assignedNumber)}`)
+        console.log(`  ${chalk.bold('Sendblue Number')}: ${formatPhoneNumber(result.assignedNumber)} ${chalk.dim('(your line — messages send from this)')}`)
     }
     console.log(`  ${chalk.bold('Plan')}:          ${result.plan}`)
     console.log(`  ${chalk.bold('API Key')}:       ${result.apiKey}`)

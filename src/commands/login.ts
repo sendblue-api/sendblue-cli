@@ -22,11 +22,14 @@ const onCancel = () => {
 interface LoginOptions {
     phone?: string
     account?: string
+    company?: string
     check?: string | boolean
     wait?: boolean
 }
 
 export async function loginCommand(opts: LoginOptions = {}): Promise<void> {
+    if (!opts.account && opts.company) opts.account = opts.company
+
     if (opts.check !== undefined) {
         const sessionId = typeof opts.check === 'string' ? opts.check : undefined
         return runPhoneCheckCommand(sessionId, 'login')
