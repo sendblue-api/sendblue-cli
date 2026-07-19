@@ -16,10 +16,11 @@ Requires Node.js 18+.
 # Create an account and get an iMessage number (interactive, email verification)
 sendblue setup
 
-# Or sign up with just your phone number — no email needed:
-sendblue setup --phone +15551234567 --company my-agent
+# Or sign up with just your phone number — no email, no account name needed:
+sendblue setup --phone +15551234567
 # The CLI shows a one-time phrase (e.g. "SB SETUP 123456") and your Sendblue number.
 # Text that phrase from your phone to that number — that single text IS the signup.
+# Your phone number becomes the account (name it with --company <name> if you want).
 # Your phone is then already a verified contact, so this works immediately:
 
 sendblue send +15551234567 'Hello from Sendblue!'
@@ -49,10 +50,10 @@ sendblue setup --phone +15551234567 --company my-co
 
 | Flag | Description |
 |------|-------------|
-| `--phone <number>` | Sign up with your phone number — verify by sending one text, no email needed |
+| `--phone <number>` | Sign up with just your phone number — verify by one text, no email or account name needed |
 | `--email <email>` | Email address |
 | `--code <code>` | 8-digit verification code |
-| `--company <name>` | Company name (lowercase, hyphens/underscores, 3-64 chars) |
+| `--company <name>` | Account name — **optional**, defaults to your phone number (lowercase, hyphens/underscores, 3-64 chars) |
 | `--account <name>` | Alias for `--company` |
 | `--contact <number>` | First contact phone number (E.164 format) |
 | `--no-wait` | With `--phone`: print the verification text and exit instead of waiting |

@@ -30,10 +30,10 @@ program
 program
     .command('setup')
     .description('Create a new Sendblue account and get an iMessage number (verify by email or by text)')
-    .option('--phone <number>', 'Sign up with your phone number — verify by sending one text, no email needed')
+    .option('--phone <number>', 'Sign up with just your phone number — verify by one text, no email or account name needed')
     .option('--email <email>', 'Email address (skip prompt)')
     .option('--code <code>', 'Verification code (skip prompt, requires --email)')
-    .option('--company <name>', 'Company name (skip prompt)')
+    .option('--company <name>', 'Account name (optional — defaults to your phone number)')
     .option('--account <name>', 'Alias for --company')
     .option('--contact <number>', 'First contact phone number (skip prompt)')
     .option('--no-wait', 'With --phone: print the verification text and exit instead of waiting')
@@ -164,9 +164,11 @@ program
 
 program.addHelpText('after', `
 Sign up / log in with just a phone number:
-  sendblue setup --phone <your-number> --company <name>   New account: you text a one-time
-                                                          phrase to the number shown — that
-                                                          single text IS the signup.
+  sendblue setup --phone <your-number>                    New account — your phone IS the
+                                                          account. Text the one-time phrase
+                                                          shown; that single text is the signup.
+                                                          Add --company <name> to name it
+                                                          (defaults to your phone number).
   sendblue login --phone <your-number>                    Existing account, same trick.
 
 For AI agents:

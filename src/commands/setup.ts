@@ -395,28 +395,34 @@ async function phoneSetupFlow(opts: SetupOptions): Promise<void> {
     console.log(chalk.dim('  no email, no password, no credit card.'))
     console.log()
 
+    // Account name is optional — your phone number IS your account. When you
+    // don't name it, it defaults to your phone's digits, so an agent can create
+    // an account with nothing but a phone number.
+    const phoneDefaultName = phoneNumber.replace(/\D/g, '')
     let companyName = opts.company?.trim().toLowerCase()
     if (companyName && !/^[a-z0-9_-]{3,64}$/.test(companyName)) {
         printError('Account name must be 3-64 characters: lowercase letters, numbers, hyphens, and underscores.')
         process.exit(1)
     }
     if (!companyName) {
-        if (!process.stdin.isTTY) {
-            printError('Missing --company. Usage: sendblue setup --phone <number> --company <account-name>')
-            process.exit(1)
+        if (process.stdin.isTTY) {
+            const response = await prompts({
+                type: 'text',
+                name: 'companyName',
+                message: `Account name (press Enter to use ${phoneDefaultName})`,
+                validate: (v: string) => {
+                    if (!v) return true // empty → default to phone number
+                    if (!/^[a-z0-9_-]+$/.test(v)) return 'Lowercase letters, numbers, hyphens, and underscores only'
+                    if (v.length < 3 || v.length > 64) return 'Must be 3-64 characters'
+                    return true
+                }
+            }, { onCancel })
+            companyName = (response.companyName as string)?.trim().toLowerCase() || phoneDefaultName
+        } else {
+            companyName = phoneDefaultName
+            console.log(chalk.dim(`  No account name given — using your phone number: ${chalk.cyan(companyName)}`))
+            console.log()
         }
-        const response = await prompts({
-            type: 'text',
-            name: 'companyName',
-            message: 'Account name (e.g. my-startup, my-ai-agent)',
-            validate: (v: string) => {
-                if (!v) return 'Account name is required'
-                if (!/^[a-z0-9_-]+$/.test(v)) return 'Lowercase letters, numbers, hyphens, and underscores only'
-                if (v.length < 3 || v.length > 64) return 'Must be 3-64 characters'
-                return true
-            }
-        }, { onCancel })
-        companyName = response.companyName as string
     }
 
     const existing = getCredentials()
