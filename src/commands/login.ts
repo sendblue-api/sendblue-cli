@@ -1,14 +1,15 @@
 import prompts from 'prompts'
 import chalk from 'chalk'
 import ora from 'ora'
-import { getCredentials, saveCredentials, credentialsPath, savePendingVerification } from '../lib/config.js'
-import { sendCode, verifyLogin, phoneLoginStart } from '../lib/api.js'
+import { getCredentials, saveCredentials, credentialsPath } from '../lib/config.js'
+import { sendCode, verifyLogin, phoneLoginStart, PhoneActionError } from '../lib/api.js'
 import { printError, printLogo, formatPhoneNumber, normalizeNumber } from '../lib/format.js'
 import {
     printChallengeInstructions,
     printVerifiedAccount,
     runPhoneCheckCommand,
     saveVerifiedCredentials,
+    storePendingVerification,
     toPending,
     waitForPhoneVerification
 } from '../lib/phone-verify.js'
@@ -28,11 +29,23 @@ interface LoginOptions {
 }
 
 export async function loginCommand(opts: LoginOptions = {}): Promise<void> {
+    if (opts.account && opts.company && opts.account !== opts.company) {
+        printError('Use either --account or --company (they are aliases), not both with different values.')
+        process.exit(1)
+    }
     if (!opts.account && opts.company) opts.account = opts.company
 
+    if (opts.check !== undefined && opts.phone) {
+        printError('Use --check alone (it finishes a pending verification) or --phone (it starts a new one), not both.')
+        process.exit(1)
+    }
     if (opts.check !== undefined) {
         const sessionId = typeof opts.check === 'string' ? opts.check : undefined
         return runPhoneCheckCommand(sessionId, 'login')
+    }
+    if (opts.wait === false && !opts.phone) {
+        printError('--no-wait only applies to phone verification. Add --phone <number>.')
+        process.exit(1)
     }
 
     if (opts.phone) {
@@ -130,6 +143,12 @@ async function phoneLoginFlow(opts: LoginOptions): Promise<void> {
         process.exit(1)
     }
 
+    let account = opts.account?.trim().toLowerCase()
+    if (account && !/^[a-z0-9_-]{3,64}$/.test(account)) {
+        printError('Account name must be 3-64 characters: lowercase letters, numbers, hyphens, and underscores.')
+        process.exit(1)
+    }
+
     console.log()
     printLogo()
     console.log(chalk.bold('  sendblue login'))
@@ -158,16 +177,22 @@ async function phoneLoginFlow(opts: LoginOptions): Promise<void> {
     const startSpinner = ora({ text: 'Starting phone verification...', indent: 2 }).start()
     let session
     try {
-        session = await phoneLoginStart(phoneNumber, opts.account)
+        session = await phoneLoginStart(phoneNumber, account)
         startSpinner.succeed('Verification started.')
     } catch (err) {
         startSpinner.fail(err instanceof Error ? err.message : String(err))
+        if (err instanceof PhoneActionError && err.status === 404) {
+            console.log()
+            console.log('  New to Sendblue? Create an account instead:')
+            console.log(chalk.cyan(`    sendblue setup --phone ${phoneNumber} --company <name>`))
+            console.log()
+        }
         process.exit(1)
     }
 
     console.log()
     const pending = toPending('login', session)
-    savePendingVerification(pending)
+    storePendingVerification(pending)
     await printChallengeInstructions(pending, { qr: true })
 
     if (opts.wait === false) {
@@ -183,6 +208,6 @@ async function phoneLoginFlow(opts: LoginOptions): Promise<void> {
         process.exit(1)
     }
 
-    saveVerifiedCredentials(result)
+    saveVerifiedCredentials(result, { clearPending: true })
     printVerifiedAccount(result, 'login', phoneNumber)
 }

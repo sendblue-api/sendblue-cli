@@ -2,7 +2,7 @@ import prompts from 'prompts'
 import chalk from 'chalk'
 import ora from 'ora'
 import qrcode from 'qrcode-terminal'
-import { getCredentials, saveCredentials, credentialsPath, savePendingVerification } from '../lib/config.js'
+import { getCredentials, saveCredentials, credentialsPath } from '../lib/config.js'
 import { sendCode, verifySetup, addContact, getSharedContacts, phoneSetupStart } from '../lib/api.js'
 import { printCredentials, printError, printLogo, formatPhoneNumber, normalizeNumber } from '../lib/format.js'
 import {
@@ -10,6 +10,7 @@ import {
     printVerifiedAccount,
     runPhoneCheckCommand,
     saveVerifiedCredentials,
+    storePendingVerification,
     toPending,
     waitForPhoneVerification
 } from '../lib/phone-verify.js'
@@ -51,11 +52,23 @@ interface SetupOptions {
 }
 
 export async function setupCommand(opts: SetupOptions): Promise<void> {
+    if (opts.company && opts.account && opts.company !== opts.account) {
+        printError('Use either --company or --account (they are aliases), not both with different values.')
+        process.exit(1)
+    }
     if (!opts.company && opts.account) opts.company = opts.account
 
+    if (opts.check !== undefined && opts.phone) {
+        printError('Use --check alone (it finishes a pending verification) or --phone (it starts a new one), not both.')
+        process.exit(1)
+    }
     if (opts.check !== undefined) {
         const sessionId = typeof opts.check === 'string' ? opts.check : undefined
         return runPhoneCheckCommand(sessionId, 'setup')
+    }
+    if (opts.wait === false && !opts.phone) {
+        printError('--no-wait only applies to phone verification. Add --phone <number>.')
+        process.exit(1)
     }
 
     if (opts.phone) {
@@ -437,7 +450,7 @@ async function phoneSetupFlow(opts: SetupOptions): Promise<void> {
 
     console.log()
     const pending = toPending('setup', session)
-    savePendingVerification(pending)
+    storePendingVerification(pending)
     await printChallengeInstructions(pending, { qr: true })
 
     if (opts.wait === false) {
@@ -453,7 +466,7 @@ async function phoneSetupFlow(opts: SetupOptions): Promise<void> {
         process.exit(1)
     }
 
-    saveVerifiedCredentials(result)
+    saveVerifiedCredentials(result, { clearPending: true })
     console.log(chalk.green.bold('  Account created!'))
     printVerifiedAccount(result, 'setup', phoneNumber)
 }

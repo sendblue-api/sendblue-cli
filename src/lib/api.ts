@@ -64,69 +64,92 @@ export interface PhoneChallengeSession {
     expiresAt: string
 }
 
+export interface PhonePending {
+    pending: true
+    message?: string
+}
+
+export type PhoneCheckResult = SetupResponse | PhonePending
+
+export function isPhonePending(result: PhoneCheckResult): result is PhonePending {
+    return 'pending' in result
+}
+
+// status 0 means the server was unreachable (network error). 5xx and 0 are
+// transient; 4xx mean the session itself is dead.
+export class PhoneActionError extends Error {
+    constructor(message: string, readonly status: number) {
+        super(message)
+    }
+
+    get transient(): boolean {
+        return this.status === 0 || this.status >= 500
+    }
+}
+
+async function postSetupAction(body: Record<string, unknown>): Promise<{ res: Response; data: Record<string, unknown> }> {
+    let res: Response
+    try {
+        res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+    } catch (err) {
+        const cause = (err as { cause?: { code?: string } }).cause?.code
+        throw new PhoneActionError(`Could not reach ${SETUP_BASE}${cause ? ` (${cause})` : ''}. Check your connection and retry.`, 0)
+    }
+    const data = await res.json().catch(() => ({})) as Record<string, unknown>
+    return { res, data }
+}
+
 // Servers that predate phone verification only know the email actions and
 // reject everything else with "email is required" — translate that into a
 // message that doesn't send the user chasing a missing email flag.
-function phoneActionError(status: number, message: string): Error {
+function phoneActionError(status: number, message: string, flow: 'login' | 'setup'): PhoneActionError {
     if (status === 400 && /email is required/i.test(message)) {
-        return new Error('Phone verification is not available on the server yet. Use email instead: `sendblue login`')
+        const fallback = flow === 'setup' ? 'sendblue setup' : 'sendblue login'
+        return new PhoneActionError(`Phone verification is not available on the server yet. Use email instead: \`${fallback}\``, status)
     }
-    return new Error(message)
+    return new PhoneActionError(message, status)
 }
 
 export async function phoneLoginStart(phoneNumber: string, account?: string): Promise<PhoneChallengeSession> {
     const body: Record<string, string> = { action: 'phone-login-start', phoneNumber }
     if (account) body.account = account
 
-    const res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    })
-
-    const data = await res.json().catch(() => ({})) as Record<string, unknown>
+    const { res, data } = await postSetupAction(body)
     if (!res.ok) {
-        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Failed to start phone login (${res.status})`)
+        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Failed to start phone login (${res.status})`, 'login')
     }
     return data as unknown as PhoneChallengeSession
 }
 
 export async function phoneSetupStart(phoneNumber: string, companyName: string): Promise<PhoneChallengeSession> {
-    const res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'phone-setup-start', phoneNumber, companyName })
-    })
-
-    const data = await res.json().catch(() => ({})) as Record<string, unknown>
+    const { res, data } = await postSetupAction({ action: 'phone-setup-start', phoneNumber, companyName })
     if (!res.ok) {
-        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Failed to start phone setup (${res.status})`)
+        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Failed to start phone setup (${res.status})`, 'setup')
     }
     return data as unknown as PhoneChallengeSession
 }
 
-async function phoneCheck(action: 'phone-login-check' | 'phone-setup-check', sessionId: string): Promise<SetupResponse | null> {
-    const res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, sessionId })
-    })
-
-    const data = await res.json().catch(() => ({})) as Record<string, unknown>
+async function phoneCheck(action: 'phone-login-check' | 'phone-setup-check', sessionId: string): Promise<PhoneCheckResult> {
+    const flow = action === 'phone-login-check' ? 'login' : 'setup'
+    const { res, data } = await postSetupAction({ action, sessionId })
     if (res.status === 202 || data.status === 'PENDING') {
-        return null
+        return { pending: true, message: data.message as string | undefined }
     }
     if (!res.ok) {
-        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Phone verification failed (${res.status})`)
+        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Phone verification failed (${res.status})`, flow)
     }
     return data as unknown as SetupResponse
 }
 
-export function phoneLoginCheck(sessionId: string): Promise<SetupResponse | null> {
+export function phoneLoginCheck(sessionId: string): Promise<PhoneCheckResult> {
     return phoneCheck('phone-login-check', sessionId)
 }
 
-export function phoneSetupCheck(sessionId: string): Promise<SetupResponse | null> {
+export function phoneSetupCheck(sessionId: string): Promise<PhoneCheckResult> {
     return phoneCheck('phone-setup-check', sessionId)
 }
 

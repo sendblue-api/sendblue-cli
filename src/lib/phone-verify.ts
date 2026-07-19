@@ -1,12 +1,13 @@
 import chalk from 'chalk'
 import ora from 'ora'
 import qrcode from 'qrcode-terminal'
-import type { PhoneChallengeSession, SetupResponse } from './api.js'
-import { phoneLoginCheck, phoneSetupCheck } from './api.js'
+import type { PhoneChallengeSession, PhoneCheckResult, SetupResponse } from './api.js'
+import { PhoneActionError, isPhonePending, phoneLoginCheck, phoneSetupCheck } from './api.js'
 import {
     PendingPhoneVerification,
     clearPendingVerification,
     credentialsPath,
+    getCredentials,
     getPendingVerification,
     savePendingVerification,
     saveCredentials
@@ -16,6 +17,8 @@ import { formatPhoneNumber, printError } from './format.js'
 const POLL_INTERVAL_MS = 3000
 // Server sessions live ~10 minutes; small grace so we don't give up before it does.
 const POLL_GRACE_MS = 15 * 1000
+const DEFAULT_SESSION_TTL_MS = 10 * 60 * 1000
+const WAITING_MESSAGE = 'Waiting for verification text.'
 
 export const PENDING_EXIT_CODE = 3
 
@@ -29,6 +32,27 @@ function generateSmsQr(phoneNumber: string, body: string): Promise<string> {
     })
 }
 
+function sessionDeadline(expiresAt: string): number {
+    const parsed = new Date(expiresAt).getTime()
+    // A malformed expiresAt from the server shouldn't turn into an instant timeout.
+    return (Number.isFinite(parsed) ? parsed : Date.now() + DEFAULT_SESSION_TTL_MS) + POLL_GRACE_MS
+}
+
+function remainingLabel(expiresAt: string): string {
+    const ms = sessionDeadline(expiresAt) - Date.now()
+    if (ms <= 0) return 'expired'
+    const mins = Math.floor(ms / 60000)
+    const secs = Math.round((ms % 60000) / 1000)
+    return mins > 0 ? `${mins}m ${secs}s left` : `${secs}s left`
+}
+
+function restartCommand(flow: 'login' | 'setup', phoneNumber?: string): string {
+    const number = phoneNumber || '<number>'
+    return flow === 'setup'
+        ? `sendblue setup --phone ${number} --company <name>`
+        : `sendblue login --phone ${number}`
+}
+
 export function toPending(flow: 'login' | 'setup', session: PhoneChallengeSession): PendingPhoneVerification {
     return {
         flow,
@@ -38,6 +62,16 @@ export function toPending(flow: 'login' | 'setup', session: PhoneChallengeSessio
         challenge: session.challenge,
         expiresAt: session.expiresAt
     }
+}
+
+/** Persist the pending session, warning if it replaces a different one. */
+export function storePendingVerification(pending: PendingPhoneVerification): void {
+    const existing = getPendingVerification()
+    if (existing && existing.sessionId !== pending.sessionId) {
+        console.log(chalk.dim(`  Note: replacing your pending ${existing.flow} verification for ${formatPhoneNumber(existing.phoneNumber)} (session ${existing.sessionId}).`))
+        console.log()
+    }
+    savePendingVerification(pending)
 }
 
 export async function printChallengeInstructions(
@@ -59,6 +93,8 @@ export async function printChallengeInstructions(
     console.log(chalk.dim(`  That one text proves you own ${formatPhoneNumber(pending.phoneNumber)} and completes ${verb} —`))
     console.log(chalk.dim('  no email, no password, nothing else.'))
     console.log()
+    console.log(chalk.dim(`  Session ${pending.sessionId} — expires in ~10 minutes (${remainingLabel(pending.expiresAt)}).`))
+    console.log()
 
     if (opts.qr && process.stdout.isTTY) {
         const qr = await generateSmsQr(pending.sharedNumber, pending.challenge)
@@ -77,11 +113,11 @@ export async function printChallengeInstructions(
     }
 }
 
-function checkFn(flow: 'login' | 'setup'): (sessionId: string) => Promise<SetupResponse | null> {
+function checkFn(flow: 'login' | 'setup'): (sessionId: string) => Promise<PhoneCheckResult> {
     return flow === 'login' ? phoneLoginCheck : phoneSetupCheck
 }
 
-export function printVerifiedAccount(result: SetupResponse, flow: 'login' | 'setup', userPhone: string): void {
+export function printVerifiedAccount(result: SetupResponse, flow: 'login' | 'setup', userPhone: string | null): void {
     console.log()
     console.log(`  ${chalk.bold('Account')}:       ${result.companyName || result.email}`)
     if (result.assignedNumber) {
@@ -89,20 +125,26 @@ export function printVerifiedAccount(result: SetupResponse, flow: 'login' | 'set
     }
     console.log(`  ${chalk.bold('Plan')}:          ${result.plan}`)
     console.log(`  ${chalk.bold('API Key')}:       ${result.apiKey}`)
-    console.log(`  ${chalk.bold('API Secret')}:    ${'•'.repeat(Math.min(result.apiSecret.length - 4, 20))}${result.apiSecret.slice(-4)}`)
+    const maskLen = Math.max(0, Math.min(result.apiSecret.length - 4, 20))
+    console.log(`  ${chalk.bold('API Secret')}:    ${'•'.repeat(maskLen)}${result.apiSecret.slice(-4)}`)
     console.log()
     console.log(chalk.dim(`  Credentials saved to ${credentialsPath()}`))
     console.log()
-    if (flow === 'setup') {
-        console.log('  Your phone is already a verified contact — try it:')
+    if (userPhone) {
+        if (flow === 'setup') {
+            console.log('  Your phone is already a verified contact — try it:')
+        } else {
+            console.log('  Send a message:')
+        }
+        console.log(chalk.cyan(`    sendblue send ${userPhone} 'Hello from Sendblue!'`))
     } else {
-        console.log('  Send a message:')
+        console.log('  See your verified contacts:')
+        console.log(chalk.cyan('    sendblue contacts'))
     }
-    console.log(chalk.cyan(`    sendblue send ${userPhone} 'Hello from Sendblue!'`))
     console.log()
 }
 
-export function saveVerifiedCredentials(result: SetupResponse): void {
+export function saveVerifiedCredentials(result: SetupResponse, opts: { clearPending: boolean }): void {
     saveCredentials({
         apiKey: result.apiKey,
         apiSecret: result.apiSecret,
@@ -111,43 +153,74 @@ export function saveVerifiedCredentials(result: SetupResponse): void {
         plan: result.plan,
         createdAt: new Date().toISOString()
     })
-    clearPendingVerification()
+    if (opts.clearPending) {
+        clearPendingVerification()
+    }
+}
+
+function printFatalCheckError(err: PhoneActionError, flow: 'login' | 'setup', phoneNumber?: string): void {
+    printError(err.message)
+    console.log()
+    console.log(chalk.dim(`  To retry from scratch: ${restartCommand(flow, phoneNumber)}`))
+    console.log()
 }
 
 export async function waitForPhoneVerification(pending: PendingPhoneVerification): Promise<SetupResponse | null> {
     const check = checkFn(pending.flow)
-    const deadline = new Date(pending.expiresAt).getTime() + POLL_GRACE_MS
+    const deadline = sessionDeadline(pending.expiresAt)
     const spinner = ora({
         text: `Waiting for your text to ${formatPhoneNumber(pending.sharedNumber)}...`,
         indent: 2
     }).start()
 
+    let lastPendingMessage: string | undefined
+
     while (Date.now() < deadline) {
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+        let result: PhoneCheckResult
         try {
-            const result = await check(pending.sessionId)
-            if (result) {
-                spinner.succeed('Phone verified!')
-                return result
-            }
-            const remaining = Math.max(0, Math.round((deadline - Date.now()) / 1000))
-            spinner.text = `Waiting for your text to ${formatPhoneNumber(pending.sharedNumber)}... (${Math.floor(remaining / 60)}m ${remaining % 60}s left)`
+            result = await check(pending.sessionId)
         } catch (err) {
-            spinner.fail(err instanceof Error ? err.message : String(err))
-            clearPendingVerification()
+            // Transient problems (network, 5xx) must not kill a verification the
+            // user may already have texted for — keep polling until the session
+            // itself is dead.
+            if (err instanceof PhoneActionError && err.transient) {
+                spinner.text = `Connection hiccup — retrying... (${err.message})`
+                continue
+            }
+            spinner.stop()
+            if (pending.sessionId === getPendingVerification()?.sessionId) {
+                clearPendingVerification()
+            }
+            printFatalCheckError(err instanceof PhoneActionError ? err : new PhoneActionError(String(err), -1), pending.flow, pending.phoneNumber)
             process.exit(1)
         }
+
+        if (!isPhonePending(result)) {
+            spinner.succeed('Phone verified!')
+            return result
+        }
+
+        lastPendingMessage = result.message
+        const detail = result.message && result.message !== WAITING_MESSAGE ? ` — ${result.message}` : ''
+        spinner.text = `Waiting for your text to ${formatPhoneNumber(pending.sharedNumber)}... (${remainingLabel(pending.expiresAt)})${detail}`
     }
 
-    spinner.info('Timed out waiting for your text.')
+    const accountInFlight = !!lastPendingMessage && lastPendingMessage !== WAITING_MESSAGE
+    spinner.info(accountInFlight ? 'Your text arrived — the server is still finalizing.' : 'Timed out waiting for your text.')
     console.log()
-    console.log('  Already sent it? Check again with:')
-    console.log(chalk.cyan(`    sendblue ${pending.flow} --check`))
-    console.log()
-    console.log('  Or start over:')
-    console.log(chalk.cyan(pending.flow === 'setup'
-        ? '    sendblue setup --phone <number> --company <name>'
-        : '    sendblue login --phone <number>'))
+    if (accountInFlight) {
+        console.log(`  Last status: ${lastPendingMessage}`)
+        console.log()
+        console.log(`  ${chalk.bold('Do not start over')} — finish with:`)
+        console.log(chalk.cyan(`    sendblue ${pending.flow} --check`))
+    } else {
+        console.log('  Already sent it? Check again with:')
+        console.log(chalk.cyan(`    sendblue ${pending.flow} --check`))
+        console.log()
+        console.log('  Or start over:')
+        console.log(chalk.cyan(`    ${restartCommand(pending.flow, pending.phoneNumber)}`))
+    }
     console.log()
     return null
 }
@@ -169,6 +242,12 @@ export async function runPhoneCheckCommand(
 
     if (!sessionId) {
         if (!pending) {
+            const creds = getCredentials()
+            if (creds) {
+                console.log(chalk.green(`  No pending phone verification — you're already set up as ${creds.email}.`))
+                console.log(chalk.dim('  See `sendblue whoami` for details.'))
+                return
+            }
             printError('No pending phone verification found. Start one with `sendblue login --phone <number>` or `sendblue setup --phone <number> --company <name>`.')
             process.exit(1)
         }
@@ -178,29 +257,49 @@ export async function runPhoneCheckCommand(
         flow = pending.flow
     }
 
-    let result: SetupResponse | null
+    const matchesPending = !!pending && pending.sessionId === sessionId
+    if (matchesPending && flow !== defaultFlow) {
+        console.log(chalk.dim(`  Finishing your pending ${flow} verification (session ${sessionId}).`))
+    }
+
+    let result: PhoneCheckResult
     try {
         result = await checkFn(flow)(sessionId)
     } catch (err) {
-        // Expired or consumed sessions are unrecoverable — clear the stale state.
-        if (pending && pending.sessionId === sessionId) {
+        if (err instanceof PhoneActionError && err.transient) {
+            // The session may still be fine — keep the local state for a retry.
+            printError(err.message)
+            console.log(chalk.dim(`  Your pending verification is saved — retry with: sendblue ${flow} --check`))
+            process.exit(1)
+        }
+        if (matchesPending) {
             clearPendingVerification()
         }
-        printError(err instanceof Error ? err.message : String(err))
+        const fatal = err instanceof PhoneActionError ? err : new PhoneActionError(String(err), -1)
+        printFatalCheckError(fatal, flow, pending?.phoneNumber)
+        if (!matchesPending && explicitSessionId && fatal.status === 404) {
+            const other = flow === 'login' ? 'setup' : 'login'
+            console.log(chalk.dim(`  If this session was started by \`sendblue ${other}\`, try: sendblue ${other} --check ${explicitSessionId}`))
+            console.log()
+        }
         process.exit(1)
     }
 
-    if (!result) {
-        if (pending && pending.sessionId === sessionId) {
-            console.log(chalk.dim(`  Still waiting — text "${pending.challenge}" from ${formatPhoneNumber(pending.phoneNumber)} to ${formatPhoneNumber(pending.sharedNumber)}.`))
+    if (isPhonePending(result)) {
+        if (matchesPending && pending) {
+            console.log(chalk.dim(`  Still waiting (${remainingLabel(pending.expiresAt)}) — text "${pending.challenge}" from ${formatPhoneNumber(pending.phoneNumber)} to ${formatPhoneNumber(pending.sharedNumber)}.`))
         } else {
             console.log(chalk.dim('  Still waiting for the verification text.'))
+        }
+        if (result.message && result.message !== WAITING_MESSAGE) {
+            console.log(chalk.dim(`  Server status: ${result.message}`))
         }
         process.exit(PENDING_EXIT_CODE)
     }
 
-    const userPhone = pending && pending.sessionId === sessionId ? pending.phoneNumber : '<your-phone>'
-    saveVerifiedCredentials(result)
+    // Only clear the stored pending state if it belongs to the session we just
+    // finished — an explicit sessionId must not destroy an unrelated pending flow.
+    saveVerifiedCredentials(result, { clearPending: matchesPending })
     console.log(chalk.green(flow === 'setup' ? '  Phone verified — account ready!' : '  Phone verified — logged in!'))
-    printVerifiedAccount(result, flow, userPhone)
+    printVerifiedAccount(result, flow, matchesPending && pending ? pending.phoneNumber : null)
 }

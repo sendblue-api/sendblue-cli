@@ -53,9 +53,10 @@ sendblue setup --phone +15551234567 --company my-co
 | `--email <email>` | Email address |
 | `--code <code>` | 8-digit verification code |
 | `--company <name>` | Company name (lowercase, hyphens/underscores, 3-64 chars) |
+| `--account <name>` | Alias for `--company` |
 | `--contact <number>` | First contact phone number (E.164 format) |
 | `--no-wait` | With `--phone`: print the verification text and exit instead of waiting |
-| `--check [sessionId]` | Finish a pending phone signup (exit code 3 while still waiting) |
+| `--check [sessionId]` | Finish a pending phone signup — resumes the saved session, or pass a session id explicitly (exit code 3 while still waiting) |
 
 With `--phone`, the phone you verify becomes the account's login identity **and** its first verified contact — `sendblue send <your-number> '...'` works the moment setup completes.
 
@@ -73,8 +74,9 @@ sendblue login --phone +15551234567 --account my-co   # if the phone is on multi
 |------|-------------|
 | `--phone <number>` | Log in by verifying your phone number with one text |
 | `--account <name>` | Account name, if this phone belongs to multiple accounts |
+| `--company <name>` | Alias for `--account` |
 | `--no-wait` | With `--phone`: print the verification text and exit instead of waiting |
-| `--check [sessionId]` | Finish a pending phone login (exit code 3 while still waiting) |
+| `--check [sessionId]` | Finish a pending phone login — resumes the saved session, or pass a session id explicitly (exit code 3 while still waiting) |
 
 ### `sendblue send <number> <message>`
 
