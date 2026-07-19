@@ -268,9 +268,11 @@ export async function runPhoneCheckCommand(
     } catch (err) {
         if (err instanceof PhoneActionError && err.transient) {
             // The session may still be fine — keep the local state for a retry.
+            // Exit with the same retryable code as "still pending" so agent
+            // automation retries instead of treating it as a hard failure.
             printError(err.message)
             console.log(chalk.dim(`  Your pending verification is saved — retry with: sendblue ${flow} --check`))
-            process.exit(1)
+            process.exit(PENDING_EXIT_CODE)
         }
         if (matchesPending) {
             clearPendingVerification()
