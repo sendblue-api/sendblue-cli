@@ -3,7 +3,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import qrcode from 'qrcode-terminal'
 import { getCredentials, saveCredentials, credentialsPath } from '../lib/config.js'
-import { sendCode, verifySetup, addContact, getSharedContacts, phoneSetupStart } from '../lib/api.js'
+import { sendCode, verifySetup, addContact, getSharedContacts, phoneSetupStart, withTransientRetry } from '../lib/api.js'
 import { printCredentials, printError, printLogo, formatPhoneNumber, normalizeNumber } from '../lib/format.js'
 import {
     printChallengeInstructions,
@@ -447,7 +447,10 @@ async function phoneSetupFlow(opts: SetupOptions): Promise<void> {
     const startSpinner = ora({ text: 'Reserving your account...', indent: 2 }).start()
     let session
     try {
-        session = await phoneSetupStart(phoneNumber, companyName)
+        session = await withTransientRetry(
+            () => phoneSetupStart(phoneNumber, companyName),
+            (err) => { startSpinner.text = `Connection hiccup — retrying... (${err.message})` }
+        )
         startSpinner.succeed(`Account name ${chalk.cyan(companyName)} reserved.`)
     } catch (err) {
         startSpinner.fail(err instanceof Error ? err.message : String(err))

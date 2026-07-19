@@ -2,7 +2,7 @@ import prompts from 'prompts'
 import chalk from 'chalk'
 import ora from 'ora'
 import { getCredentials, saveCredentials, credentialsPath } from '../lib/config.js'
-import { sendCode, verifyLogin, phoneLoginStart, PhoneActionError } from '../lib/api.js'
+import { sendCode, verifyLogin, phoneLoginStart, PhoneActionError, withTransientRetry } from '../lib/api.js'
 import { printError, printLogo, formatPhoneNumber, normalizeNumber } from '../lib/format.js'
 import {
     printChallengeInstructions,
@@ -177,7 +177,10 @@ async function phoneLoginFlow(opts: LoginOptions): Promise<void> {
     const startSpinner = ora({ text: 'Starting phone verification...', indent: 2 }).start()
     let session
     try {
-        session = await phoneLoginStart(phoneNumber, account)
+        session = await withTransientRetry(
+            () => phoneLoginStart(phoneNumber, account),
+            (err) => { startSpinner.text = `Connection hiccup — retrying... (${err.message})` }
+        )
         startSpinner.succeed('Verification started.')
     } catch (err) {
         startSpinner.fail(err instanceof Error ? err.message : String(err))

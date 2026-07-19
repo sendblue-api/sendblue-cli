@@ -87,6 +87,28 @@ export class PhoneActionError extends Error {
     }
 }
 
+const START_RETRY_DELAYS_MS = [2000, 4000]
+
+// Retry transient failures (network errors, 5xx — e.g. the server answering
+// 503 while one of its own dependencies blips) before giving up. Non-transient
+// errors and exhausted retries are rethrown for the caller to handle.
+export async function withTransientRetry<T>(
+    fn: () => Promise<T>,
+    onRetry?: (err: PhoneActionError, attempt: number) => void
+): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await fn()
+        } catch (err) {
+            if (!(err instanceof PhoneActionError) || !err.transient || attempt >= START_RETRY_DELAYS_MS.length) {
+                throw err
+            }
+            onRetry?.(err, attempt + 1)
+            await new Promise(resolve => setTimeout(resolve, START_RETRY_DELAYS_MS[attempt]))
+        }
+    }
+}
+
 async function postSetupAction(body: Record<string, unknown>): Promise<{ res: Response; data: Record<string, unknown> }> {
     let res: Response
     try {
