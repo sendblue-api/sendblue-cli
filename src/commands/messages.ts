@@ -12,7 +12,7 @@ export async function messagesCommand(opts: {
 }): Promise<void> {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
 

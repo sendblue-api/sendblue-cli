@@ -29,16 +29,23 @@ program
 
 program
     .command('setup')
-    .description('Create a new Sendblue account and get an iMessage number')
+    .description('Create a new Sendblue account and get an iMessage number (verify by email or by text)')
+    .option('--phone <number>', 'Sign up with your phone number — verify by sending one text, no email needed')
     .option('--email <email>', 'Email address (skip prompt)')
     .option('--code <code>', 'Verification code (skip prompt, requires --email)')
     .option('--company <name>', 'Company name (skip prompt)')
     .option('--contact <number>', 'First contact phone number (skip prompt)')
+    .option('--no-wait', 'With --phone: print the verification text and exit instead of waiting')
+    .option('--check [sessionId]', 'Finish a pending phone signup (exit code 3 while still waiting)')
     .action(setupCommand)
 
 program
     .command('login')
-    .description('Log in to an existing Sendblue account')
+    .description('Log in to an existing Sendblue account (email by default, --phone to verify by text)')
+    .option('--phone <number>', 'Log in by verifying your phone number with one text')
+    .option('--account <name>', 'Account name, if this phone belongs to multiple accounts')
+    .option('--no-wait', 'With --phone: print the verification text and exit instead of waiting')
+    .option('--check [sessionId]', 'Finish a pending phone login (exit code 3 while still waiting)')
     .action(loginCommand)
 
 program
@@ -152,5 +159,20 @@ program
     .command('show-keys')
     .description('Show your API key and secret')
     .action(showKeysCommand)
+
+program.addHelpText('after', `
+Sign up / log in with just a phone number:
+  sendblue setup --phone <your-number> --company <name>   New account: you text a one-time
+                                                          phrase to the number shown — that
+                                                          single text IS the signup.
+  sendblue login --phone <your-number>                    Existing account, same trick.
+
+For AI agents:
+  Machine-readable docs: https://docs.sendblue.com/llms.txt
+  Non-interactive flows: add --no-wait, relay the phrase to the user, then poll
+  \`sendblue login --check\` / \`sendblue setup --check\` (exit code 3 = still waiting).
+  After phone signup the user's own phone is already a verified contact:
+  sendblue send <user-number> 'hello' works immediately.
+`)
 
 program.parse()

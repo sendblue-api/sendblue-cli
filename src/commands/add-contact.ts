@@ -16,7 +16,7 @@ function generateSmsQr(phoneNumber: string): Promise<string> {
 export async function addContactCommand(number: string): Promise<void> {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
 
@@ -76,7 +76,7 @@ export async function addContactCommand(number: string): Promise<void> {
 export async function contactsCommand(): Promise<void> {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
 

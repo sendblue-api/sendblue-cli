@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 
-const API_BASE = 'https://api.sendblue.com'
-const SETUP_BASE = 'https://dashboard.sendblue.com'
+const API_BASE = process.env.SENDBLUE_API_BASE || 'https://api.sendblue.com'
+const SETUP_BASE = process.env.SENDBLUE_SETUP_BASE || 'https://dashboard.sendblue.com'
 
-interface SetupResponse {
+export interface SetupResponse {
     status: string
     email: string
     companyName: string
@@ -54,6 +54,80 @@ export async function verifySetup(email: string, code: string, companyName: stri
     }
 
     return res.json() as Promise<SetupResponse>
+}
+
+export interface PhoneChallengeSession {
+    sessionId: string
+    phoneNumber: string
+    sharedNumber: string
+    challenge: string
+    expiresAt: string
+}
+
+// Servers that predate phone verification only know the email actions and
+// reject everything else with "email is required" — translate that into a
+// message that doesn't send the user chasing a missing email flag.
+function phoneActionError(status: number, message: string): Error {
+    if (status === 400 && /email is required/i.test(message)) {
+        return new Error('Phone verification is not available on the server yet. Use email instead: `sendblue login`')
+    }
+    return new Error(message)
+}
+
+export async function phoneLoginStart(phoneNumber: string, account?: string): Promise<PhoneChallengeSession> {
+    const body: Record<string, string> = { action: 'phone-login-start', phoneNumber }
+    if (account) body.account = account
+
+    const res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+
+    const data = await res.json().catch(() => ({})) as Record<string, unknown>
+    if (!res.ok) {
+        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Failed to start phone login (${res.status})`)
+    }
+    return data as unknown as PhoneChallengeSession
+}
+
+export async function phoneSetupStart(phoneNumber: string, companyName: string): Promise<PhoneChallengeSession> {
+    const res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'phone-setup-start', phoneNumber, companyName })
+    })
+
+    const data = await res.json().catch(() => ({})) as Record<string, unknown>
+    if (!res.ok) {
+        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Failed to start phone setup (${res.status})`)
+    }
+    return data as unknown as PhoneChallengeSession
+}
+
+async function phoneCheck(action: 'phone-login-check' | 'phone-setup-check', sessionId: string): Promise<SetupResponse | null> {
+    const res = await fetch(`${SETUP_BASE}/api/v3/cli/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, sessionId })
+    })
+
+    const data = await res.json().catch(() => ({})) as Record<string, unknown>
+    if (res.status === 202 || data.status === 'PENDING') {
+        return null
+    }
+    if (!res.ok) {
+        throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Phone verification failed (${res.status})`)
+    }
+    return data as unknown as SetupResponse
+}
+
+export function phoneLoginCheck(sessionId: string): Promise<SetupResponse | null> {
+    return phoneCheck('phone-login-check', sessionId)
+}
+
+export function phoneSetupCheck(sessionId: string): Promise<SetupResponse | null> {
+    return phoneCheck('phone-setup-check', sessionId)
 }
 
 export async function verifyLogin(email: string, code: string): Promise<SetupResponse> {

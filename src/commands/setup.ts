@@ -2,9 +2,17 @@ import prompts from 'prompts'
 import chalk from 'chalk'
 import ora from 'ora'
 import qrcode from 'qrcode-terminal'
-import { getCredentials, saveCredentials, credentialsPath } from '../lib/config.js'
-import { sendCode, verifySetup, addContact, getSharedContacts } from '../lib/api.js'
+import { getCredentials, saveCredentials, credentialsPath, savePendingVerification } from '../lib/config.js'
+import { sendCode, verifySetup, addContact, getSharedContacts, phoneSetupStart } from '../lib/api.js'
 import { printCredentials, printError, printLogo, formatPhoneNumber, normalizeNumber } from '../lib/format.js'
+import {
+    printChallengeInstructions,
+    printVerifiedAccount,
+    runPhoneCheckCommand,
+    saveVerifiedCredentials,
+    toPending,
+    waitForPhoneVerification
+} from '../lib/phone-verify.js'
 
 function generateSmsQr(phoneNumber: string): Promise<string> {
     return new Promise((resolve) => {
@@ -36,9 +44,25 @@ interface SetupOptions {
     code?: string
     company?: string
     contact?: string
+    phone?: string
+    check?: string | boolean
+    wait?: boolean
 }
 
 export async function setupCommand(opts: SetupOptions): Promise<void> {
+    if (opts.check !== undefined) {
+        const sessionId = typeof opts.check === 'string' ? opts.check : undefined
+        return runPhoneCheckCommand(sessionId, 'setup')
+    }
+
+    if (opts.phone) {
+        if (opts.email || opts.code) {
+            printError('Choose one verification method: --phone (verify by text) or --email/--code (verify by email).')
+            process.exit(1)
+        }
+        return phoneSetupFlow(opts)
+    }
+
     const nonInteractive = !!(opts.email && opts.code && opts.company)
 
     console.log()
@@ -46,6 +70,7 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
     console.log(chalk.bold('  Welcome to Sendblue'))
     console.log(chalk.dim('  Send and receive iMessages programmatically.'))
     console.log(chalk.dim('  Free to start — no credit card required.'))
+    console.log(chalk.dim('  Tip: skip email entirely with `sendblue setup --phone <your-number> --company <name>`'))
     console.log()
 
     // Check for existing credentials
@@ -338,4 +363,94 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
         console.log(chalk.cyan('    sendblue add-contact +15551234567'))
         console.log()
     }
+}
+
+async function phoneSetupFlow(opts: SetupOptions): Promise<void> {
+    const phoneNumber = normalizeNumber(opts.phone!)
+    if (!/^\+\d{10,15}$/.test(phoneNumber)) {
+        printError('Enter a valid phone number in E.164 format (e.g. +15551234567).')
+        process.exit(1)
+    }
+
+    console.log()
+    printLogo()
+    console.log(chalk.bold('  Welcome to Sendblue'))
+    console.log(chalk.dim(`  Sign up by verifying ${formatPhoneNumber(phoneNumber)} with a single text —`))
+    console.log(chalk.dim('  no email, no password, no credit card.'))
+    console.log()
+
+    let companyName = opts.company?.trim().toLowerCase()
+    if (companyName && !/^[a-z0-9_-]{3,64}$/.test(companyName)) {
+        printError('Account name must be 3-64 characters: lowercase letters, numbers, hyphens, and underscores.')
+        process.exit(1)
+    }
+    if (!companyName) {
+        if (!process.stdin.isTTY) {
+            printError('Missing --company. Usage: sendblue setup --phone <number> --company <account-name>')
+            process.exit(1)
+        }
+        const response = await prompts({
+            type: 'text',
+            name: 'companyName',
+            message: 'Account name (e.g. my-startup, my-ai-agent)',
+            validate: (v: string) => {
+                if (!v) return 'Account name is required'
+                if (!/^[a-z0-9_-]+$/.test(v)) return 'Lowercase letters, numbers, hyphens, and underscores only'
+                if (v.length < 3 || v.length > 64) return 'Must be 3-64 characters'
+                return true
+            }
+        }, { onCancel })
+        companyName = response.companyName as string
+    }
+
+    const existing = getCredentials()
+    if (existing) {
+        if (process.stdin.isTTY) {
+            const { overwrite } = await prompts({
+                type: 'confirm',
+                name: 'overwrite',
+                message: `You already have an account configured (${existing.email}). Overwrite?`,
+                initial: false
+            }, { onCancel })
+            if (!overwrite) {
+                console.log(chalk.dim('  Setup cancelled.'))
+                return
+            }
+        } else {
+            console.log(chalk.dim(`  Overwriting existing credentials (${existing.email}) once verified.`))
+            console.log()
+        }
+    }
+
+    const startSpinner = ora({ text: 'Reserving your account...', indent: 2 }).start()
+    let session
+    try {
+        session = await phoneSetupStart(phoneNumber, companyName)
+        startSpinner.succeed(`Account name ${chalk.cyan(companyName)} reserved.`)
+    } catch (err) {
+        startSpinner.fail(err instanceof Error ? err.message : String(err))
+        process.exit(1)
+    }
+
+    console.log()
+    const pending = toPending('setup', session)
+    savePendingVerification(pending)
+    await printChallengeInstructions(pending, { qr: true })
+
+    if (opts.wait === false) {
+        console.log('  When the text is sent, finish with:')
+        console.log(chalk.cyan('    sendblue setup --check'))
+        console.log(chalk.dim('    (exit code 3 = still waiting)'))
+        console.log()
+        return
+    }
+
+    const result = await waitForPhoneVerification(pending)
+    if (!result) {
+        process.exit(1)
+    }
+
+    saveVerifiedCredentials(result)
+    console.log(chalk.green.bold('  Account created!'))
+    printVerifiedAccount(result, 'setup', phoneNumber)
 }

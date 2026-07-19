@@ -9,7 +9,7 @@ const VALID_TYPES = ['receive', 'outbound', 'call_log', 'line_blocked', 'line_as
 export async function webhooksListCommand(): Promise<void> {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
 
@@ -44,7 +44,7 @@ export async function webhooksListCommand(): Promise<void> {
 export async function webhooksAddCommand(url: string, opts: { type: string }): Promise<void> {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
 
@@ -67,7 +67,7 @@ export async function webhooksAddCommand(url: string, opts: { type: string }): P
 export async function webhooksRemoveCommand(url: string, opts: { type: string }): Promise<void> {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
 
