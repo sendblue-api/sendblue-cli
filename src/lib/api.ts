@@ -667,6 +667,11 @@ function throwV3Error(body: Record<string, unknown>, status: number, fallback: s
     throw new Error(`${fallback} (${status})`)
 }
 
+async function readV3Data<T>(res: Response): Promise<T> {
+    const body = await res.json() as { data: T }
+    return body.data
+}
+
 export interface Sandbox {
     id: string
     status: string
@@ -709,8 +714,7 @@ export async function createSandbox(apiKey: string, apiSecret: string): Promise<
         throwV3Error(body, res.status, 'Failed to create sandbox')
     }
 
-    const data = await res.json() as { data: Sandbox }
-    return data.data
+    return readV3Data<Sandbox>(res)
 }
 
 export async function listSandboxes(apiKey: string, apiSecret: string): Promise<SandboxListResponse> {
@@ -727,7 +731,7 @@ export async function listSandboxes(apiKey: string, apiSecret: string): Promise<
         throwV3Error(body, res.status, 'Failed to list sandboxes')
     }
 
-    return res.json() as Promise<SandboxListResponse>
+    return readV3Data<SandboxListResponse>(res)
 }
 
 export async function execSandbox(
@@ -755,7 +759,7 @@ export async function execSandbox(
         throwV3Error(body, res.status, 'Failed to run command')
     }
 
-    return res.json() as Promise<SandboxExecResult>
+    return readV3Data<SandboxExecResult>(res)
 }
 
 export async function readSandboxFile(
@@ -778,8 +782,8 @@ export async function readSandboxFile(
         throwV3Error(body, res.status, 'Failed to read file')
     }
 
-    const data = await res.json() as { content: string }
-    return data.content
+    const data = await readV3Data<{ content?: string }>(res)
+    return data.content || ''
 }
 
 export async function writeSandboxFile(
