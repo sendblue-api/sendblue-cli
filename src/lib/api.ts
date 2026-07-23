@@ -650,3 +650,172 @@ export async function testKeys(apiKey: string, apiSecret: string): Promise<boole
         return false
     }
 }
+
+// --- Sandboxes (v3) ---
+//
+// v3 endpoints return errors shaped { error: { code, message, details? } },
+// where `error` is an object — unlike the older endpoints above where `error`
+// is a bare string. Pull the nested message out so callers can surface it.
+function throwV3Error(body: Record<string, unknown>, status: number, fallback: string): never {
+    const err = body.error
+    if (err && typeof err === 'object') {
+        const message = (err as { message?: unknown }).message
+        if (typeof message === 'string' && message) throw new Error(message)
+    }
+    if (typeof err === 'string' && err) throw new Error(err)
+    if (typeof body.message === 'string' && body.message) throw new Error(body.message)
+    throw new Error(`${fallback} (${status})`)
+}
+
+export interface Sandbox {
+    id: string
+    status: string
+    created_at?: string
+}
+
+export interface SandboxUsage {
+    used_usd: number
+    cap_usd: number
+    remaining_usd: number
+    rate_usd_per_hour: number
+    max_active_sandboxes: number
+}
+
+export interface SandboxListResponse {
+    sandboxes: Sandbox[]
+    usage: SandboxUsage
+    connect: { prompt: string }
+}
+
+export interface SandboxExecResult {
+    stdout: string
+    stderr: string
+    exit_code: number
+}
+
+export async function createSandbox(apiKey: string, apiSecret: string): Promise<Sandbox> {
+    const res = await fetch(`${API_BASE}/v3/sandboxes`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        },
+        body: JSON.stringify({})
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throwV3Error(body, res.status, 'Failed to create sandbox')
+    }
+
+    const data = await res.json() as { data: Sandbox }
+    return data.data
+}
+
+export async function listSandboxes(apiKey: string, apiSecret: string): Promise<SandboxListResponse> {
+    const res = await fetch(`${API_BASE}/v3/sandboxes`, {
+        method: 'GET',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        }
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throwV3Error(body, res.status, 'Failed to list sandboxes')
+    }
+
+    return res.json() as Promise<SandboxListResponse>
+}
+
+export async function execSandbox(
+    apiKey: string,
+    apiSecret: string,
+    id: string,
+    command: string,
+    timeoutMs?: number
+): Promise<SandboxExecResult> {
+    const payload: Record<string, unknown> = { command }
+    if (timeoutMs !== undefined) payload.timeout_ms = timeoutMs
+
+    const res = await fetch(`${API_BASE}/v3/sandboxes/${encodeURIComponent(id)}/exec`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        },
+        body: JSON.stringify(payload)
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throwV3Error(body, res.status, 'Failed to run command')
+    }
+
+    return res.json() as Promise<SandboxExecResult>
+}
+
+export async function readSandboxFile(
+    apiKey: string,
+    apiSecret: string,
+    id: string,
+    path: string
+): Promise<string> {
+    const params = new URLSearchParams({ path })
+    const res = await fetch(`${API_BASE}/v3/sandboxes/${encodeURIComponent(id)}/files?${params}`, {
+        method: 'GET',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        }
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throwV3Error(body, res.status, 'Failed to read file')
+    }
+
+    const data = await res.json() as { content: string }
+    return data.content
+}
+
+export async function writeSandboxFile(
+    apiKey: string,
+    apiSecret: string,
+    id: string,
+    path: string,
+    content: string
+): Promise<void> {
+    const res = await fetch(`${API_BASE}/v3/sandboxes/${encodeURIComponent(id)}/files`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        },
+        body: JSON.stringify({ path, content })
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throwV3Error(body, res.status, 'Failed to write file')
+    }
+}
+
+export async function deleteSandbox(apiKey: string, apiSecret: string, id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/v3/sandboxes/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+            'sb-api-key-id': apiKey,
+            'sb-api-secret-key': apiSecret
+        }
+    })
+
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        throwV3Error(body, res.status, 'Failed to delete sandbox')
+    }
+}

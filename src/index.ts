@@ -15,6 +15,7 @@ import { linesCommand } from './commands/lines.js'
 import { webhooksListCommand, webhooksAddCommand, webhooksRemoveCommand } from './commands/webhooks.js'
 import { showKeysCommand } from './commands/show-keys.js'
 import { totpAddCommand, totpListCommand, totpCodeCommand, totpRemoveCommand } from './commands/totp.js'
+import { sandboxCommand } from './commands/sandbox.js'
 import { getLogo } from './lib/format.js'
 
 const require = createRequire(import.meta.url)
@@ -146,6 +147,8 @@ totp
     .command('remove <secret-id>')
     .description('Delete a stored TOTP secret')
     .action(totpRemoveCommand)
+
+program.addCommand(sandboxCommand)
 
 program
     .command('status')
