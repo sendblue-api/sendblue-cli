@@ -279,11 +279,11 @@ async function connectAction(): Promise<void> {
 }
 
 export const sandboxCommand = new Command('sandbox')
-    .description('Spin up and drive cloud sandboxes for agents')
+    .description('Bootstrap and drive cloud sandboxes for agents')
 
 sandboxCommand
     .command('init')
-    .description('Verify by one text, create a Sendblue account if needed, then create a sandbox')
+    .description('No keys or phone number needed up front: verify by one text, then create a sandbox')
     .option('--company <name>', 'Optional account name; omit to use the verified phone digits')
     .option('--no-wait', 'Print the verification text and exit instead of waiting')
     .action(initAction)
@@ -338,4 +338,8 @@ Examples:
   sendblue sandbox list
   sendblue sandbox connect
   sendblue sandbox delete sbx_123
+
+Fresh setup:
+  sendblue sandbox init creates the account credentials and first sandbox.
+  The verified phone is inferred from the SMS sender; it is not typed into the CLI.
 `)
