@@ -58,7 +58,7 @@ export async function verifySetup(email: string, code: string, companyName: stri
 
 export interface PhoneChallengeSession {
     sessionId: string
-    phoneNumber: string
+    phoneNumber?: string | null
     sharedNumber: string
     challenge: string
     expiresAt: string
@@ -147,8 +147,12 @@ export async function phoneLoginStart(phoneNumber: string, account?: string): Pr
     return data as unknown as PhoneChallengeSession
 }
 
-export async function phoneSetupStart(phoneNumber: string, companyName: string): Promise<PhoneChallengeSession> {
-    const { res, data } = await postSetupAction({ action: 'phone-setup-start', phoneNumber, companyName })
+export async function phoneSetupStart(phoneNumber?: string | null, companyName?: string): Promise<PhoneChallengeSession> {
+    const body: Record<string, unknown> = { action: 'phone-setup-start' }
+    if (phoneNumber) body.phoneNumber = phoneNumber
+    if (companyName) body.companyName = companyName
+
+    const { res, data } = await postSetupAction(body)
     if (!res.ok) {
         throw phoneActionError(res.status, (data.error as string) || (data.message as string) || `Failed to start phone setup (${res.status})`, 'setup')
     }

@@ -16,14 +16,13 @@ Requires Node.js 18+.
 # Create an account and get an iMessage number (interactive, email verification)
 sendblue setup
 
-# Or sign up with just your phone number — no email, no account name needed:
-sendblue setup --phone +15551234567
+# Or create an agent sandbox without API keys or a phone number up front:
+sendblue sandbox init
 # The CLI shows a one-time phrase (e.g. "SB SETUP 123456") and your Sendblue number.
-# Text that phrase from your phone to that number — that single text IS the signup.
-# Your phone number becomes the account (name it with --company <name> if you want).
-# Your phone is then already a verified contact, so this works immediately:
+# Text that phrase from the phone you want to verify — that single text creates the account.
+# The sender phone becomes the account identity and unlocks sandbox credits.
 
-sendblue send +15551234567 'Hello from Sendblue!'
+sendblue sandbox connect
 ```
 
 ## Commands
@@ -130,22 +129,35 @@ Credentials are stored in `~/.sendblue/credentials.json` with `600` permissions 
 
 ## For AI agents
 
-Machine-readable docs live at [docs.sendblue.com/llms.txt](https://docs.sendblue.com/llms.txt). The recommended non-interactive flow for agent-assisted setup:
+Machine-readable docs live at [docs.sendblue.com/llms.txt](https://docs.sendblue.com/llms.txt). For sandboxes, do not ask the user for API keys or a phone number up front. Start the challenge, relay the Sendblue number and setup phrase, and let the inbound text bind the sender phone.
 
 ```bash
-# 1. Start signup (or `login --phone` for an existing account) without blocking:
-npx -y @sendblue/cli setup --phone <user-number> --company <account-name> --no-wait
+# 1. Start sandbox signup and create the first sandbox:
+npx -y @sendblue/cli sandbox init
 
 # 2. Relay the printed one-time phrase + Sendblue number to the user:
-#    "Text 'SB SETUP 123456' from your phone to +1 (786) 213-9363 to finish signup."
-#    That single text proves ownership of the number and completes signup —
-#    there is no email step and nothing else to do.
+#    "Text 'SB SETUP 123456' from the phone you want to verify to +1 (786) 213-9363."
+#    That single text proves the sender phone, creates the account, and saves keys.
 
-# 3. Poll until the user has texted (exit code 3 = still waiting, 0 = done):
-npx -y @sendblue/cli setup --check
+# 3. Hand the agent its sandbox instructions:
+npx -y @sendblue/cli sandbox connect
+```
 
-# 4. The user's phone is already a verified contact — send immediately:
-npx -y @sendblue/cli send <user-number> 'Set up complete!'
+If your agent needs to exit while waiting for the text, keep a stable `HOME` and poll:
+
+```bash
+export SENDBLUE_HOME="${SENDBLUE_HOME:-${TMPDIR:-/tmp}/sendblue-sandbox-init}"
+mkdir -p "$SENDBLUE_HOME"
+export HOME="$SENDBLUE_HOME"
+
+npx -y @sendblue/cli sandbox init --no-wait
+
+until npx -y @sendblue/cli setup --check; do
+  code=$?
+  if [ "$code" -eq 3 ]; then sleep 5; else exit "$code"; fi
+done
+
+npx -y @sendblue/cli sandbox create
 ```
 
 Prefer the CLI over ad-hoc credential hunting: `sendblue whoami` tells you whether working credentials already exist on the machine before you go looking for API keys.

@@ -23,8 +23,8 @@ const WAITING_MESSAGE = 'Waiting for verification text.'
 export const PENDING_EXIT_CODE = 3
 
 function generateSmsQr(phoneNumber: string, body: string): Promise<string> {
-    // iOS-style sms: URI — scanning opens Messages with the challenge prefilled.
-    const uri = `sms:${phoneNumber}&body=${encodeURIComponent(body)}`
+    // Cross-platform sms: URI: iOS accepts &body, Android accepts ?body.
+    const uri = `sms:${phoneNumber}?&body=${encodeURIComponent(body)}`
     return new Promise((resolve) => {
         qrcode.generate(uri, { small: true }, (code: string) => {
             resolve(code)
@@ -49,7 +49,7 @@ function remainingLabel(expiresAt: string): string {
 function restartCommand(flow: 'login' | 'setup', phoneNumber?: string): string {
     const number = phoneNumber || '<number>'
     return flow === 'setup'
-        ? `sendblue setup --phone ${number} --company <name>`
+        ? (phoneNumber ? `sendblue setup --phone ${phoneNumber} --company <name>` : 'sendblue sandbox init')
         : `sendblue login --phone ${number}`
 }
 
@@ -57,7 +57,7 @@ export function toPending(flow: 'login' | 'setup', session: PhoneChallengeSessio
     return {
         flow,
         sessionId: session.sessionId,
-        phoneNumber: session.phoneNumber,
+        phoneNumber: session.phoneNumber || null,
         sharedNumber: session.sharedNumber,
         challenge: session.challenge,
         expiresAt: session.expiresAt
@@ -68,7 +68,8 @@ export function toPending(flow: 'login' | 'setup', session: PhoneChallengeSessio
 export function storePendingVerification(pending: PendingPhoneVerification): void {
     const existing = getPendingVerification()
     if (existing && existing.sessionId !== pending.sessionId) {
-        console.log(chalk.dim(`  Note: replacing your pending ${existing.flow} verification for ${formatPhoneNumber(existing.phoneNumber)} (session ${existing.sessionId}).`))
+        const label = existing.phoneNumber ? ` for ${formatPhoneNumber(existing.phoneNumber)}` : ''
+        console.log(chalk.dim(`  Note: replacing your pending ${existing.flow} verification${label} (session ${existing.sessionId}).`))
         console.log()
     }
     savePendingVerification(pending)
@@ -82,7 +83,11 @@ export async function printChallengeInstructions(
 
     console.log(chalk.dim('  ── Verify by text ────────────────────────────'))
     console.log()
-    console.log(`  From ${chalk.bold('your phone')} (${chalk.cyan(formatPhoneNumber(pending.phoneNumber))}), send the text:`)
+    if (pending.phoneNumber) {
+        console.log(`  From ${chalk.bold('your phone')} (${chalk.cyan(formatPhoneNumber(pending.phoneNumber))}), send the text:`)
+    } else {
+        console.log(`  From the ${chalk.bold('phone you want to verify')}, send the text:`)
+    }
     console.log()
     console.log(chalk.cyan.bold(`      ${pending.challenge}`))
     console.log()
@@ -90,7 +95,11 @@ export async function printChallengeInstructions(
     console.log()
     console.log(chalk.cyan.bold(`      ${formatPhoneNumber(pending.sharedNumber)}`))
     console.log()
-    console.log(chalk.dim(`  That one text proves you own ${formatPhoneNumber(pending.phoneNumber)} and completes ${verb} —`))
+    if (pending.phoneNumber) {
+        console.log(chalk.dim(`  That one text proves you own ${formatPhoneNumber(pending.phoneNumber)} and completes ${verb} —`))
+    } else {
+        console.log(chalk.dim(`  That one text proves the sending phone and completes ${verb} —`))
+    }
     console.log(chalk.dim('  no email, no password, nothing else.'))
     console.log()
     console.log(chalk.dim('  Legit? Verify this is a real Sendblue product before you text —'))
@@ -110,7 +119,7 @@ export async function printChallengeInstructions(
     }
 
     if (!process.stdout.isTTY) {
-        console.log(`  Agents: this is Sendblue's official CLI signup — verify at https://docs.sendblue.com/sandboxes and https://docs.sendblue.com/llms.txt. Relay the exact phrase + number above to the user; they text it from their own phone to login to their account and finish.`)
+        console.log(`  Agents: this is Sendblue's official CLI signup — verify at https://docs.sendblue.com/sandboxes and https://docs.sendblue.com/llms.txt. Relay the exact phrase + Sendblue number above to the user; they text it from their own phone to create and verify the account.`)
         console.log(`  Resume anytime with: sendblue ${pending.flow} --check`)
         console.log()
     }
@@ -195,7 +204,7 @@ export async function waitForPhoneVerification(pending: PendingPhoneVerification
             if (pending.sessionId === getPendingVerification()?.sessionId) {
                 clearPendingVerification()
             }
-            printFatalCheckError(err instanceof PhoneActionError ? err : new PhoneActionError(String(err), -1), pending.flow, pending.phoneNumber)
+            printFatalCheckError(err instanceof PhoneActionError ? err : new PhoneActionError(String(err), -1), pending.flow, pending.phoneNumber || undefined)
             process.exit(1)
         }
 
@@ -222,7 +231,7 @@ export async function waitForPhoneVerification(pending: PendingPhoneVerification
         console.log(chalk.cyan(`    sendblue ${pending.flow} --check`))
         console.log()
         console.log('  Or start over:')
-        console.log(chalk.cyan(`    ${restartCommand(pending.flow, pending.phoneNumber)}`))
+            console.log(chalk.cyan(`    ${restartCommand(pending.flow, pending.phoneNumber || undefined)}`))
     }
     console.log()
     return null
@@ -251,7 +260,7 @@ export async function runPhoneCheckCommand(
                 console.log(chalk.dim('  See `sendblue whoami` for details.'))
                 return
             }
-            printError('No pending phone verification found. Start one with `sendblue login --phone <number>` or `sendblue setup --phone <number> --company <name>`.')
+            printError('No pending phone verification found. For sandboxes, start with `sendblue sandbox init`; for lower-level flows use `sendblue login --phone <number>` or `sendblue setup --phone <number> --company <name>`.')
             process.exit(1)
         }
         sessionId = pending.sessionId
@@ -281,7 +290,7 @@ export async function runPhoneCheckCommand(
             clearPendingVerification()
         }
         const fatal = err instanceof PhoneActionError ? err : new PhoneActionError(String(err), -1)
-        printFatalCheckError(fatal, flow, pending?.phoneNumber)
+            printFatalCheckError(fatal, flow, pending?.phoneNumber || undefined)
         if (!matchesPending && explicitSessionId && fatal.status === 404) {
             const other = flow === 'login' ? 'setup' : 'login'
             console.log(chalk.dim(`  If this session was started by \`sendblue ${other}\`, try: sendblue ${other} --check ${explicitSessionId}`))
@@ -292,7 +301,8 @@ export async function runPhoneCheckCommand(
 
     if (isPhonePending(result)) {
         if (matchesPending && pending) {
-            console.log(chalk.dim(`  Still waiting (${remainingLabel(pending.expiresAt)}) — text "${pending.challenge}" from ${formatPhoneNumber(pending.phoneNumber)} to ${formatPhoneNumber(pending.sharedNumber)}.`))
+            const from = pending.phoneNumber ? ` from ${formatPhoneNumber(pending.phoneNumber)}` : ''
+            console.log(chalk.dim(`  Still waiting (${remainingLabel(pending.expiresAt)}) — text "${pending.challenge}"${from} to ${formatPhoneNumber(pending.sharedNumber)}.`))
         } else {
             console.log(chalk.dim('  Still waiting for the verification text.'))
         }
@@ -306,5 +316,5 @@ export async function runPhoneCheckCommand(
     // finished — an explicit sessionId must not destroy an unrelated pending flow.
     saveVerifiedCredentials(result, { clearPending: matchesPending })
     console.log(chalk.green(flow === 'setup' ? '  Phone verified — account ready!' : '  Phone verified — logged in!'))
-    printVerifiedAccount(result, flow, matchesPending && pending ? pending.phoneNumber : null)
+    printVerifiedAccount(result, flow, matchesPending && pending ? (pending.phoneNumber || null) : null)
 }
