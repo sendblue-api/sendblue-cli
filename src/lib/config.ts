@@ -14,6 +14,10 @@ export interface SendblueCredentials {
 const CONFIG_DIR = path.join(os.homedir(), '.sendblue')
 const CREDENTIALS_FILE = path.join(CONFIG_DIR, 'credentials.json')
 
+function ensureConfigDir(): void {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 })
+}
+
 export function getCredentials(): SendblueCredentials | null {
     try {
         const data = fs.readFileSync(CREDENTIALS_FILE, 'utf-8')
@@ -24,9 +28,7 @@ export function getCredentials(): SendblueCredentials | null {
 }
 
 export function saveCredentials(creds: SendblueCredentials): void {
-    if (!fs.existsSync(CONFIG_DIR)) {
-        fs.mkdirSync(CONFIG_DIR, { mode: 0o700 })
-    }
+    ensureConfigDir()
     fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2), {
         mode: 0o600
     })
@@ -56,9 +58,7 @@ export interface PendingPhoneVerification {
 const PENDING_FILE = path.join(CONFIG_DIR, 'pending-verification.json')
 
 export function savePendingVerification(pending: PendingPhoneVerification): void {
-    if (!fs.existsSync(CONFIG_DIR)) {
-        fs.mkdirSync(CONFIG_DIR, { mode: 0o700 })
-    }
+    ensureConfigDir()
     fs.writeFileSync(PENDING_FILE, JSON.stringify(pending, null, 2), {
         mode: 0o600
     })
