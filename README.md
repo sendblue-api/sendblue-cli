@@ -16,7 +16,7 @@ Requires Node.js 18+.
 # Create an account and get an iMessage number (interactive, email verification)
 sendblue setup
 
-# Or create an agent sandbox without API keys or a phone number up front:
+# Or create an agent sandbox. Fresh setup has no API keys or phone number typed up front:
 sendblue sandbox init
 # The CLI shows a one-time phrase (e.g. "SB SETUP 123456") and your Sendblue number.
 # Text that phrase from the phone you want to verify — that single text creates the account.
@@ -129,18 +129,18 @@ Credentials are stored in `~/.sendblue/credentials.json` with `600` permissions 
 
 ## For AI agents
 
-Machine-readable docs live at [docs.sendblue.com/llms.txt](https://docs.sendblue.com/llms.txt). For sandboxes, do not ask the user for API keys or a phone number up front. Start the challenge, relay the Sendblue number and setup phrase, and let the inbound text bind the sender phone.
+Machine-readable docs live at [docs.sendblue.com/llms.txt](https://docs.sendblue.com/llms.txt). For sandboxes, API keys are created by the setup flow, and the verified phone is inferred from the SMS sender rather than typed into the terminal. Start the challenge, relay the Sendblue number and setup phrase, and let the inbound text bind the sender phone.
 
 ```bash
 # 1. Start sandbox signup and create the first sandbox:
-npx -y @sendblue/cli sandbox init
+npx -y @sendblue/cli@latest sandbox init
 
 # 2. Relay the printed one-time phrase + Sendblue number to the user:
 #    "Text 'SB SETUP 123456' from the phone you want to verify to +1 (786) 213-9363."
 #    That single text proves the sender phone, creates the account, and saves keys.
 
 # 3. Hand the agent its sandbox instructions:
-npx -y @sendblue/cli sandbox connect
+npx -y @sendblue/cli@latest sandbox connect
 ```
 
 If your agent needs to exit while waiting for the text, keep a stable `HOME` and poll:
@@ -150,14 +150,14 @@ export SENDBLUE_HOME="${SENDBLUE_HOME:-${TMPDIR:-/tmp}/sendblue-sandbox-init}"
 mkdir -p "$SENDBLUE_HOME"
 export HOME="$SENDBLUE_HOME"
 
-npx -y @sendblue/cli sandbox init --no-wait
+npx -y @sendblue/cli@latest sandbox init --no-wait
 
-until npx -y @sendblue/cli setup --check; do
+until npx -y @sendblue/cli@latest setup --check; do
   code=$?
   if [ "$code" -eq 3 ]; then sleep 5; else exit "$code"; fi
 done
 
-npx -y @sendblue/cli sandbox create
+npx -y @sendblue/cli@latest sandbox create
 ```
 
 Prefer the CLI over ad-hoc credential hunting: `sendblue whoami` tells you whether working credentials already exist on the machine before you go looking for API keys.
