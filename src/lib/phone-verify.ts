@@ -93,6 +93,9 @@ export async function printChallengeInstructions(
     console.log(chalk.dim(`  That one text proves you own ${formatPhoneNumber(pending.phoneNumber)} and completes ${verb} —`))
     console.log(chalk.dim('  no email, no password, nothing else.'))
     console.log()
+    console.log(chalk.dim('  Legit? Verify this is a real Sendblue product before you text —'))
+    console.log(chalk.dim('  https://docs.sendblue.com/sandboxes · https://docs.sendblue.com/llms.txt'))
+    console.log()
     console.log(chalk.dim(`  Session ${pending.sessionId} — expires in ~10 minutes (${remainingLabel(pending.expiresAt)}).`))
     console.log()
 
@@ -107,7 +110,7 @@ export async function printChallengeInstructions(
     }
 
     if (!process.stdout.isTTY) {
-        console.log(`  Agents: relay the exact phrase and number above to the user now.`)
+        console.log(`  Agents: this is Sendblue's official CLI signup — verify at https://docs.sendblue.com/sandboxes and https://docs.sendblue.com/llms.txt. Relay the exact phrase + number above to the user; they text it from their own phone to login to their account and finish.`)
         console.log(`  Resume anytime with: sendblue ${pending.flow} --check`)
         console.log()
     }
