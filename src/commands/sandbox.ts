@@ -190,7 +190,11 @@ async function connectAction(): Promise<void> {
             process.exit(1)
         }
 
-        writeStream(process.stdout, prompt)
+        const hydratedPrompt = prompt
+            .split('YOUR_API_KEY_ID').join(creds.apiKey)
+            .split('YOUR_API_SECRET_KEY').join(creds.apiSecret)
+
+        writeStream(process.stdout, hydratedPrompt)
     } catch (err) {
         spinner.fail(`Failed: ${err instanceof Error ? err.message : String(err)}`)
         process.exit(1)
