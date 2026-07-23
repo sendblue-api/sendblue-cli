@@ -7,7 +7,7 @@ import { normalizeNumber, printError } from '../lib/format.js'
 export async function typingCommand(number: string): Promise<void> {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
 

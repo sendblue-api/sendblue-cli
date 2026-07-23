@@ -7,7 +7,7 @@ import { printError } from '../lib/format.js'
 function requireCreds() {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue login` first.')
+        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
         process.exit(1)
     }
     return creds

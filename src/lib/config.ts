@@ -43,3 +43,40 @@ export function clearCredentials(): void {
 export function credentialsPath(): string {
     return CREDENTIALS_FILE
 }
+
+export interface PendingPhoneVerification {
+    flow: 'login' | 'setup'
+    sessionId: string
+    phoneNumber: string
+    sharedNumber: string
+    challenge: string
+    expiresAt: string
+}
+
+const PENDING_FILE = path.join(CONFIG_DIR, 'pending-verification.json')
+
+export function savePendingVerification(pending: PendingPhoneVerification): void {
+    if (!fs.existsSync(CONFIG_DIR)) {
+        fs.mkdirSync(CONFIG_DIR, { mode: 0o700 })
+    }
+    fs.writeFileSync(PENDING_FILE, JSON.stringify(pending, null, 2), {
+        mode: 0o600
+    })
+}
+
+export function getPendingVerification(): PendingPhoneVerification | null {
+    try {
+        const data = fs.readFileSync(PENDING_FILE, 'utf-8')
+        return JSON.parse(data) as PendingPhoneVerification
+    } catch {
+        return null
+    }
+}
+
+export function clearPendingVerification(): void {
+    try {
+        fs.unlinkSync(PENDING_FILE)
+    } catch {
+        // ignore if doesn't exist
+    }
+}
