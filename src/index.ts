@@ -166,6 +166,12 @@ program
     .action(showKeysCommand)
 
 program.addHelpText('after', `
+Agent sandbox setup:
+  sendblue sandbox init                                 No API keys or phone number needed up
+                                                          front. Shows a Sendblue number + code;
+                                                          the user texts it from their phone, then
+                                                          the CLI creates the account and sandbox.
+
 Sign up / log in with just a phone number:
   sendblue setup --phone <your-number>                    New account — your phone IS the
                                                           account. Text the one-time phrase
@@ -176,7 +182,8 @@ Sign up / log in with just a phone number:
 
 For AI agents:
   Machine-readable docs: https://docs.sendblue.com/llms.txt
-  Non-interactive flows: add --no-wait, relay the phrase to the user, then poll
+  For sandboxes, prefer \`sendblue sandbox init\`. For lower-level phone flows,
+  add --no-wait, relay the phrase to the user, then poll
   \`sendblue login --check\` / \`sendblue setup --check\` (exit code 3 = still waiting).
   After phone signup the user's own phone is already a verified contact:
   sendblue send <user-number> 'hello' works immediately.

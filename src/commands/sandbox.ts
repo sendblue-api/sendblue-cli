@@ -8,17 +8,41 @@ import {
     execSandbox,
     readSandboxFile,
     writeSandboxFile,
-    deleteSandbox
+    deleteSandbox,
+    phoneSetupStart,
+    withTransientRetry
 } from '../lib/api.js'
 import { printError } from '../lib/format.js'
+import {
+    printChallengeInstructions,
+    printVerifiedAccount,
+    saveVerifiedCredentials,
+    storePendingVerification,
+    toPending,
+    waitForPhoneVerification
+} from '../lib/phone-verify.js'
 
 function requireCreds() {
     const creds = getCredentials()
     if (!creds) {
-        printError('No credentials found. Run `sendblue setup` to create an account, or `sendblue login` if you already have one.')
+        printError('No credentials found. Run `sendblue sandbox init` to verify by text and create a sandbox, or `sendblue login` if you already have an account.')
         process.exit(1)
     }
     return creds
+}
+
+function validateCompanyName(companyName: string | undefined): string | undefined {
+    const normalized = companyName?.trim().toLowerCase()
+    if (!normalized) return undefined
+    if (!/^[a-z0-9_-]{3,64}$/.test(normalized)) {
+        printError('Account name must be 3-64 characters: lowercase letters, numbers, hyphens, and underscores.')
+        process.exit(1)
+    }
+    if (!/[a-z]/.test(normalized)) {
+        printError('Account name must include at least one letter. Omit --company to default to the verified phone digits.')
+        process.exit(1)
+    }
+    return normalized
 }
 
 function usd(n: number): string {
@@ -61,6 +85,59 @@ async function createAction(): Promise<void> {
         spinner.fail(`Failed: ${err instanceof Error ? err.message : String(err)}`)
         process.exit(1)
     }
+}
+
+async function initAction(opts: { company?: string; wait?: boolean }): Promise<void> {
+    const existing = getCredentials()
+    if (existing) {
+        console.log(chalk.dim(`  Using existing Sendblue credentials (${existing.email}).`))
+        console.log()
+        return createAction()
+    }
+
+    const companyName = validateCompanyName(opts.company)
+
+    console.log()
+    console.log(chalk.bold('  Sendblue sandbox setup'))
+    console.log(chalk.dim('  No API keys yet. Text one code from the phone you want to verify;'))
+    console.log(chalk.dim('  Sendblue will create the account and sandbox after that text arrives.'))
+    console.log()
+
+    const startSpinner = ora({ text: 'Starting phone verification...', indent: 2 }).start()
+    let session
+    try {
+        session = await withTransientRetry(
+            () => phoneSetupStart(null, companyName),
+            (err) => { startSpinner.text = `Connection hiccup — retrying... (${err.message})` }
+        )
+        startSpinner.succeed('Verification challenge ready.')
+    } catch (err) {
+        startSpinner.fail(err instanceof Error ? err.message : String(err))
+        process.exit(1)
+    }
+
+    console.log()
+    const pending = toPending('setup', session)
+    storePendingVerification(pending)
+    await printChallengeInstructions(pending, { qr: true })
+
+    if (opts.wait === false) {
+        console.log('  When the text is sent, finish with:')
+        console.log(chalk.cyan('    sendblue setup --check && sendblue sandbox create'))
+        console.log(chalk.dim('    (`sendblue setup --check` exits 3 while still waiting)'))
+        console.log()
+        return
+    }
+
+    const result = await waitForPhoneVerification(pending)
+    if (!result) {
+        process.exit(1)
+    }
+
+    saveVerifiedCredentials(result, { clearPending: true })
+    console.log(chalk.green.bold('  Account created!'))
+    printVerifiedAccount(result, 'setup', null)
+    await createAction()
 }
 
 async function listAction(): Promise<void> {
@@ -205,6 +282,13 @@ export const sandboxCommand = new Command('sandbox')
     .description('Spin up and drive cloud sandboxes for agents')
 
 sandboxCommand
+    .command('init')
+    .description('Verify by one text, create a Sendblue account if needed, then create a sandbox')
+    .option('--company <name>', 'Optional account name; omit to use the verified phone digits')
+    .option('--no-wait', 'Print the verification text and exit instead of waiting')
+    .action(initAction)
+
+sandboxCommand
     .command('create')
     .description('Create a new sandbox')
     .action(createAction)
@@ -245,6 +329,7 @@ sandboxCommand
 
 sandboxCommand.addHelpText('after', `
 Examples:
+  sendblue sandbox init
   sendblue sandbox create
   sendblue sandbox exec sbx_123 "npm install"
   sendblue sandbox exec sbx_123 ls -la
