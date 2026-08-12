@@ -16,11 +16,11 @@ Requires Node.js 18+.
 # Create an account and get an iMessage number (interactive, email verification)
 sendblue setup
 
-# Or create an agent sandbox. Fresh setup has no API keys or phone number typed up front:
+# Or create an agent sandbox. Interactive setup prompts for the phone:
 sendblue sandbox init
-# The CLI shows a one-time phrase (e.g. "SB SETUP 123456") and your Sendblue number.
-# Text that phrase from the phone you want to verify — that single text creates the account.
-# The sender phone becomes the account identity and unlocks sandbox credits.
+# The CLI shows a one-time Verify code and Sendblue number.
+# Text that code from the phone you entered — that single text creates the account.
+# The verified phone becomes the account identity and unlocks sandbox credits.
 
 sendblue sandbox connect
 ```
@@ -125,32 +125,29 @@ Show current credentials and verify they're valid.
 
 ## Credentials
 
-Credentials are stored in `~/.sendblue/credentials.json` with `600` permissions (owner read/write only). Run `sendblue whoami` to see the current config path.
+Credentials are stored in `~/.sendblue/credentials.json` with `600` permissions (owner read/write only). Set `SENDBLUE_CONFIG_DIR` to isolate credentials and pending verification state for tests or concurrent environments. Run `sendblue whoami` to see the current config path.
 
 ## For AI agents
 
-Machine-readable docs live at [docs.sendblue.com/llms.txt](https://docs.sendblue.com/llms.txt). For sandboxes, API keys are created by the setup flow, and the verified phone is inferred from the SMS sender rather than typed into the terminal. Start the challenge, relay the Sendblue number and setup phrase, and let the inbound text bind the sender phone.
+Machine-readable docs live at [docs.sendblue.com/llms.txt](https://docs.sendblue.com/llms.txt). For sandboxes, API keys are created only after the submitted phone completes Sendblue Verify. Interactive setup prompts for the phone; non-interactive agents must pass `--phone`.
 
 ```bash
 # 1. Start sandbox signup and create the first sandbox:
-npx -y @sendblue/cli@latest sandbox init
+npx -y @sendblue/cli@latest sandbox init --phone +15551234567
 
-# 2. Relay the printed one-time phrase + Sendblue number to the user:
-#    "Text 'SB SETUP 123456' from the phone you want to verify to +1 (786) 213-9363."
-#    That single text proves the sender phone, creates the account, and saves keys.
+# 2. Relay the printed one-time code + Sendblue number to the user.
+#    That text proves the submitted phone, creates the account, and saves keys.
 
 # 3. Hand the agent its sandbox instructions:
 npx -y @sendblue/cli@latest sandbox connect
 ```
 
-If your agent needs to exit while waiting for the text, keep a stable `HOME` and poll:
+If your agent needs to exit while waiting for the text, keep a stable config directory and poll:
 
 ```bash
-export SENDBLUE_HOME="${SENDBLUE_HOME:-${TMPDIR:-/tmp}/sendblue-sandbox-init}"
-mkdir -p "$SENDBLUE_HOME"
-export HOME="$SENDBLUE_HOME"
+export SENDBLUE_CONFIG_DIR="${SENDBLUE_CONFIG_DIR:-${TMPDIR:-/tmp}/sendblue-sandbox-init}"
 
-npx -y @sendblue/cli@latest sandbox init --no-wait
+npx -y @sendblue/cli@latest sandbox init --phone +15551234567 --no-wait
 
 until npx -y @sendblue/cli@latest setup --check; do
   code=$?

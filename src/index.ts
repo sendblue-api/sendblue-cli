@@ -167,10 +167,11 @@ program
 
 program.addHelpText('after', `
 Agent sandbox setup:
-  sendblue sandbox init                                 No API keys or phone number needed up
-                                                          front. Shows a Sendblue number + code;
-                                                          the user texts it from their phone, then
-                                                          the CLI creates the account and sandbox.
+  sendblue sandbox init                                 Prompts for a phone, then shows a
+                                                          Sendblue number + code. The user texts
+                                                          it from that phone; the CLI creates the
+                                                          account and sandbox. Non-interactive:
+                                                          add --phone <your-number>.
 
 Sign up / log in with just a phone number:
   sendblue setup --phone <your-number>                    New account — your phone IS the

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "npm run build && node --test test",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
