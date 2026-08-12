@@ -38,7 +38,7 @@ test('sandbox init sends --phone and persists a resumable Verify challenge', asy
             response.end(JSON.stringify({
                 status: 'PENDING',
                 sessionId: 'session-1',
-                phoneNumber: '+15551234567',
+                phoneNumber: '+12345678',
                 sharedNumber: '+15559999999',
                 challenge: 'AB2CD3',
                 expiresAt: new Date(Date.now() + 300_000).toISOString()
@@ -52,7 +52,7 @@ test('sandbox init sends --phone and persists a resumable Verify challenge', asy
     const result = await new Promise((resolve, reject) => {
         const child = spawn(
             process.execPath,
-            ['dist/index.js', 'sandbox', 'init', '--phone', '+1 (555) 123-4567', '--no-wait'],
+            ['dist/index.js', 'sandbox', 'init', '--phone', '+12345678', '--no-wait'],
             {
                 cwd: process.cwd(),
                 env: {
@@ -74,14 +74,14 @@ test('sandbox init sends --phone and persists a resumable Verify challenge', asy
     assert.equal(result.status, 0, result.stderr)
     assert.deepEqual(requestBody, {
         action: 'phone-setup-start',
-        phoneNumber: '+15551234567'
+        phoneNumber: '+12345678'
     })
     assert.match(result.stdout, /sms:\+15559999999\?body=AB2CD3/)
     const pendingPath = path.join(configDir, 'pending-verification.json')
     assert.deepEqual(JSON.parse(fs.readFileSync(pendingPath, 'utf8')), {
         flow: 'setup',
         sessionId: 'session-1',
-        phoneNumber: '+15551234567',
+        phoneNumber: '+12345678',
         sharedNumber: '+15559999999',
         challenge: 'AB2CD3',
         expiresAt: JSON.parse(fs.readFileSync(pendingPath, 'utf8')).expiresAt

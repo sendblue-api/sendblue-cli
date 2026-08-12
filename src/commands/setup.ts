@@ -4,7 +4,7 @@ import ora from 'ora'
 import qrcode from 'qrcode-terminal'
 import { getCredentials, saveCredentials, credentialsPath } from '../lib/config.js'
 import { sendCode, verifySetup, addContact, getSharedContacts, phoneSetupStart, withTransientRetry } from '../lib/api.js'
-import { printCredentials, printError, printLogo, formatPhoneNumber, normalizeNumber } from '../lib/format.js'
+import { printCredentials, printError, printLogo, formatPhoneNumber, isE164PhoneNumber, normalizeNumber } from '../lib/format.js'
 import {
     printChallengeInstructions,
     printVerifiedAccount,
@@ -269,7 +269,7 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
             validate: (v: string) => {
                 if (!v) return true // allow skip
                 const n = normalizeNumber(v)
-                return /^\+\d{10,15}$/.test(n) || 'Enter a valid phone number (e.g. 5551234567)'
+                return isE164PhoneNumber(n) || 'Enter a valid phone number (e.g. 5551234567)'
             }
         }, { onCancel })
         contactNumber = response.contactNumber
@@ -383,7 +383,7 @@ export async function setupCommand(opts: SetupOptions): Promise<void> {
 
 async function phoneSetupFlow(opts: SetupOptions): Promise<void> {
     const phoneNumber = normalizeNumber(opts.phone!)
-    if (!/^\+\d{10,15}$/.test(phoneNumber)) {
+    if (!isE164PhoneNumber(phoneNumber)) {
         printError('Enter a valid phone number in E.164 format (e.g. +15551234567).')
         process.exit(1)
     }

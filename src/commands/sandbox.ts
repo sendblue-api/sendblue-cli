@@ -13,7 +13,7 @@ import {
     phoneSetupStart,
     withTransientRetry
 } from '../lib/api.js'
-import { formatPhoneNumber, normalizeNumber, printError } from '../lib/format.js'
+import { formatPhoneNumber, isE164PhoneNumber, normalizeNumber, printError } from '../lib/format.js'
 import {
     printChallengeInstructions,
     printVerifiedAccount,
@@ -96,7 +96,7 @@ const onCancel = () => {
 
 function validatePhoneNumber(raw: string): string | null {
     const normalized = normalizeNumber(raw.trim())
-    return /^\+\d{10,15}$/.test(normalized) ? normalized : null
+    return isE164PhoneNumber(normalized) ? normalized : null
 }
 
 async function initAction(opts: { company?: string; phone?: string; wait?: boolean }): Promise<void> {

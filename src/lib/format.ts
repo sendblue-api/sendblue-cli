@@ -53,6 +53,10 @@ export function normalizeNumber(input: string): string {
     return num
 }
 
+export function isE164PhoneNumber(input: string): boolean {
+    return /^\+[1-9]\d{7,14}$/.test(input)
+}
+
 export function formatPhoneNumber(e164: string): string {
     // +15551234567 -> +1 (555) 123-4567
     const match = e164.match(/^\+1(\d{3})(\d{3})(\d{4})$/)
