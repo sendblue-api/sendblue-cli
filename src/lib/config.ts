@@ -46,6 +46,11 @@ export function credentialsPath(): string {
     return CREDENTIALS_FILE
 }
 
+export function sendblueConfigDir(): string {
+    ensureConfigDir()
+    return CONFIG_DIR
+}
+
 export interface PendingPhoneVerification {
     flow: 'login' | 'setup'
     sessionId: string
