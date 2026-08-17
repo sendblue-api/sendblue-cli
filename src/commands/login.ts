@@ -3,7 +3,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { getCredentials, saveCredentials, credentialsPath } from '../lib/config.js'
 import { sendCode, verifyLogin, phoneLoginStart, PhoneActionError, withTransientRetry } from '../lib/api.js'
-import { printError, printLogo, formatPhoneNumber, normalizeNumber } from '../lib/format.js'
+import { printError, printLogo, formatPhoneNumber, isE164PhoneNumber, normalizeNumber } from '../lib/format.js'
 import {
     printChallengeInstructions,
     printVerifiedAccount,
@@ -138,7 +138,7 @@ export async function loginCommand(opts: LoginOptions = {}): Promise<void> {
 
 async function phoneLoginFlow(opts: LoginOptions): Promise<void> {
     const phoneNumber = normalizeNumber(opts.phone!)
-    if (!/^\+\d{10,15}$/.test(phoneNumber)) {
+    if (!isE164PhoneNumber(phoneNumber)) {
         printError('Enter a valid phone number in E.164 format (e.g. +15551234567).')
         process.exit(1)
     }

@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
 import ora from 'ora'
+import prompts from 'prompts'
 import { getCredentials } from '../lib/config.js'
 import {
     createSandbox,
@@ -12,7 +13,7 @@ import {
     phoneSetupStart,
     withTransientRetry
 } from '../lib/api.js'
-import { printError } from '../lib/format.js'
+import { formatPhoneNumber, isE164PhoneNumber, normalizeNumber, printError } from '../lib/format.js'
 import {
     printChallengeInstructions,
     printVerifiedAccount,
@@ -87,7 +88,18 @@ async function createAction(): Promise<void> {
     }
 }
 
-async function initAction(opts: { company?: string; wait?: boolean }): Promise<void> {
+const onCancel = () => {
+    console.log()
+    printError('Sandbox setup cancelled.')
+    process.exit(0)
+}
+
+function validatePhoneNumber(raw: string): string | null {
+    const normalized = normalizeNumber(raw.trim())
+    return isE164PhoneNumber(normalized) ? normalized : null
+}
+
+async function initAction(opts: { company?: string; phone?: string; wait?: boolean }): Promise<void> {
     const existing = getCredentials()
     if (existing) {
         console.log(chalk.dim(`  Using existing Sendblue credentials (${existing.email}).`))
@@ -96,10 +108,32 @@ async function initAction(opts: { company?: string; wait?: boolean }): Promise<v
     }
 
     const companyName = validateCompanyName(opts.company)
+    let phoneNumber = opts.phone ? validatePhoneNumber(opts.phone) : null
+    if (opts.phone && !phoneNumber) {
+        printError('Enter a valid phone number in E.164 format (e.g. +15551234567).')
+        process.exit(1)
+    }
+    if (!phoneNumber) {
+        if (!process.stdin.isTTY) {
+            printError('`sendblue sandbox init` requires --phone <number> in a non-interactive shell.')
+            process.exit(1)
+        }
+        const response = await prompts({
+            type: 'text',
+            name: 'phoneNumber',
+            message: 'Phone number to verify',
+            validate: (value: string) => Boolean(validatePhoneNumber(value)) || 'Enter a valid phone number (e.g. +15551234567)'
+        }, { onCancel })
+        phoneNumber = validatePhoneNumber(response.phoneNumber)
+        if (!phoneNumber) {
+            printError('Enter a valid phone number in E.164 format (e.g. +15551234567).')
+            process.exit(1)
+        }
+    }
 
     console.log()
     console.log(chalk.bold('  Sendblue sandbox setup'))
-    console.log(chalk.dim('  No API keys yet. Text one code from the phone you want to verify;'))
+    console.log(chalk.dim(`  No API keys yet. Verify ${formatPhoneNumber(phoneNumber)} with one text;`))
     console.log(chalk.dim('  Sendblue will create the account and sandbox after that text arrives.'))
     console.log()
 
@@ -107,7 +141,7 @@ async function initAction(opts: { company?: string; wait?: boolean }): Promise<v
     let session
     try {
         session = await withTransientRetry(
-            () => phoneSetupStart(null, companyName),
+            () => phoneSetupStart(phoneNumber, companyName),
             (err) => { startSpinner.text = `Connection hiccup — retrying... (${err.message})` }
         )
         startSpinner.succeed('Verification challenge ready.')
@@ -136,7 +170,7 @@ async function initAction(opts: { company?: string; wait?: boolean }): Promise<v
 
     saveVerifiedCredentials(result, { clearPending: true })
     console.log(chalk.green.bold('  Account created!'))
-    printVerifiedAccount(result, 'setup', null)
+    printVerifiedAccount(result, 'setup', phoneNumber)
     await createAction()
 }
 
@@ -283,7 +317,8 @@ export const sandboxCommand = new Command('sandbox')
 
 sandboxCommand
     .command('init')
-    .description('No keys or phone number needed up front: verify by one text, then create a sandbox')
+    .description('Verify a phone by one text, then create account credentials and a sandbox')
+    .option('--phone <number>', 'Phone number to verify (prompted interactively; required in non-interactive shells)')
     .option('--company <name>', 'Optional account name; omit to use the verified phone digits')
     .option('--no-wait', 'Print the verification text and exit instead of waiting')
     .action(initAction)
@@ -340,6 +375,6 @@ Examples:
   sendblue sandbox delete sbx_123
 
 Fresh setup:
-  sendblue sandbox init creates the account credentials and first sandbox.
-  The verified phone is inferred from the SMS sender; it is not typed into the CLI.
+  sendblue sandbox init prompts for the phone, then creates credentials and the first sandbox.
+  In a non-interactive shell, use: sendblue sandbox init --phone +15551234567
 `)

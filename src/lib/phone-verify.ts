@@ -22,9 +22,12 @@ const WAITING_MESSAGE = 'Waiting for verification text.'
 
 export const PENDING_EXIT_CODE = 3
 
+export function buildSmsDeepLink(phoneNumber: string, body: string): string {
+    return `sms:${phoneNumber}?body=${encodeURIComponent(body)}`
+}
+
 function generateSmsQr(phoneNumber: string, body: string): Promise<string> {
-    // Cross-platform sms: URI: iOS accepts &body, Android accepts ?body.
-    const uri = `sms:${phoneNumber}?&body=${encodeURIComponent(body)}`
+    const uri = buildSmsDeepLink(phoneNumber, body)
     return new Promise((resolve) => {
         qrcode.generate(uri, { small: true }, (code: string) => {
             resolve(code)
@@ -106,6 +109,7 @@ export async function printChallengeInstructions(
     console.log(chalk.dim('  https://docs.sendblue.com/sandboxes · https://docs.sendblue.com/llms.txt'))
     console.log()
     console.log(chalk.dim(`  Session ${pending.sessionId} — expires in ~10 minutes (${remainingLabel(pending.expiresAt)}).`))
+    console.log(chalk.dim(`  Open the prefilled text: ${buildSmsDeepLink(pending.sharedNumber, pending.challenge)}`))
     console.log()
 
     if (opts.qr && process.stdout.isTTY) {

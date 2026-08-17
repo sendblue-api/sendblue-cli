@@ -11,11 +11,21 @@ export interface SendblueCredentials {
     createdAt: string
 }
 
-const CONFIG_DIR = path.join(os.homedir(), '.sendblue')
+const CONFIG_DIR = process.env.SENDBLUE_CONFIG_DIR
+    ? path.resolve(process.env.SENDBLUE_CONFIG_DIR)
+    : path.join(os.homedir(), '.sendblue')
 const CREDENTIALS_FILE = path.join(CONFIG_DIR, 'credentials.json')
 
 function ensureConfigDir(): void {
     fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 })
+    fs.chmodSync(CONFIG_DIR, 0o700)
+}
+
+function writePrivateJson(file: string, value: unknown): void {
+    ensureConfigDir()
+    fs.writeFileSync(file, JSON.stringify(value, null, 2), { mode: 0o600 })
+    // `mode` applies only when creating a file. Tighten a pre-existing file too.
+    fs.chmodSync(file, 0o600)
 }
 
 export function getCredentials(): SendblueCredentials | null {
@@ -28,10 +38,7 @@ export function getCredentials(): SendblueCredentials | null {
 }
 
 export function saveCredentials(creds: SendblueCredentials): void {
-    ensureConfigDir()
-    fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2), {
-        mode: 0o600
-    })
+    writePrivateJson(CREDENTIALS_FILE, creds)
 }
 
 export function clearCredentials(): void {
@@ -63,10 +70,7 @@ export interface PendingPhoneVerification {
 const PENDING_FILE = path.join(CONFIG_DIR, 'pending-verification.json')
 
 export function savePendingVerification(pending: PendingPhoneVerification): void {
-    ensureConfigDir()
-    fs.writeFileSync(PENDING_FILE, JSON.stringify(pending, null, 2), {
-        mode: 0o600
-    })
+    writePrivateJson(PENDING_FILE, pending)
 }
 
 export function getPendingVerification(): PendingPhoneVerification | null {
