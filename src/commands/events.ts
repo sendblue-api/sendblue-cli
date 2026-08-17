@@ -141,7 +141,16 @@ export async function eventsCommand(opts: EventsOptions): Promise<void> {
                 emitControl('stream.connected')
                 if (opts.recover !== false) {
                     const warnings = await recoverEvents(creds, cursor, emit, emitControlRecord)
-                    if (!opts.jsonl) warnings.forEach((warning) => console.error(chalk.yellow(`Recovery warning: ${warning}`)))
+                    warnings.forEach((warning, index) => {
+                        emitControlRecord({
+                            version: 1,
+                            id: `recovery.warning:${Date.now()}:${index}`,
+                            type: 'recovery.warning',
+                            occurred_at: new Date().toISOString(),
+                            data: { error: warning }
+                        })
+                        console.error(chalk.yellow(`Recovery warning: ${warning}`))
+                    })
                 }
                 if (opts.once) break
 

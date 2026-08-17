@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import SendblueAPI from 'sendblue'
 import { API_BASE } from './api.js'
 import { sendblueConfigDir, type SendblueCredentials } from './config.js'
 
@@ -56,8 +57,9 @@ function authHeaders(creds: SendblueCredentials): Record<string, string> {
     }
 }
 
-function accountCursorPath(creds: SendblueCredentials): string {
-    const accountHash = createHash('sha256').update(creds.email.toLowerCase()).digest('hex').slice(0, 16)
+export function eventCursorPath(creds: SendblueCredentials): string {
+    const endpoint = API_BASE.replace(/\/+$/, '').toLowerCase()
+    const accountHash = createHash('sha256').update(`${endpoint}\0${creds.apiKey}`).digest('hex').slice(0, 16)
     return path.join(sendblueConfigDir(), `events-${accountHash}.json`)
 }
 
@@ -78,7 +80,7 @@ export function loadEventCursor(creds: SendblueCredentials, since?: string): Eve
     }
 
     try {
-        const parsed = JSON.parse(fs.readFileSync(accountCursorPath(creds), 'utf8')) as Partial<EventCursor>
+        const parsed = JSON.parse(fs.readFileSync(eventCursorPath(creds), 'utf8')) as Partial<EventCursor>
         if (
             parsed.version === 1 &&
             Array.isArray(parsed.recent_ids) &&
@@ -100,7 +102,7 @@ export function loadEventCursor(creds: SendblueCredentials, since?: string): Eve
 }
 
 export function saveEventCursor(creds: SendblueCredentials, cursor: EventCursor): void {
-    const target = accountCursorPath(creds)
+    const target = eventCursorPath(creds)
     const temporary = `${target}.${process.pid}.tmp`
     fs.writeFileSync(temporary, JSON.stringify(cursor, null, 2), { mode: 0o600 })
     fs.renameSync(temporary, target)
@@ -139,80 +141,55 @@ async function requireJson(res: Response, label: string): Promise<any> {
     return body
 }
 
+function sdkClient(creds: SendblueCredentials): SendblueAPI {
+    return new SendblueAPI({
+        apiKey: creds.apiKey,
+        apiSecret: creds.apiSecret,
+        baseURL: API_BASE,
+        maxRetries: 0
+    })
+}
+
+export function isSendblueEvent(value: unknown): value is SendblueEvent {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const event = value as Partial<SendblueEvent>
+    return event.version === 1 &&
+        typeof event.id === 'string' &&
+        event.id.length > 0 &&
+        typeof event.type === 'string' &&
+        (EVENT_TYPES as readonly string[]).includes(event.type) &&
+        validDate(event.occurred_at) &&
+        Boolean(event.data) &&
+        typeof event.data === 'object' &&
+        !Array.isArray(event.data)
+}
+
 export async function connectEventStream(
     creds: SendblueCredentials,
     types: string[],
     signal: AbortSignal
-): Promise<Response> {
-    const query = types.length ? `?types=${encodeURIComponent(types.join(','))}` : ''
-    const res = await fetch(`${API_BASE}/api/v2/events${query}`, {
-        headers: { ...authHeaders(creds), accept: 'text/event-stream' },
-        signal
-    })
-    if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as Record<string, unknown>
-        if (res.status === 404) throw new Error('This Sendblue server does not have the events endpoint yet')
-        throw new Error((body.message as string) || `Event stream failed (${res.status})`)
+): Promise<AsyncIterable<unknown>> {
+    try {
+        return await sdkClient(creds).events.stream(
+            types.length ? { types: types.join(',') } : {},
+            { signal, maxRetries: 0 }
+        )
+    } catch (error) {
+        if ((error as { status?: unknown })?.status === 404) {
+            throw new Error('This Sendblue server does not have the events endpoint yet')
+        }
+        throw error
     }
-    const contentType = res.headers.get('content-type') || ''
-    if (!contentType.toLowerCase().includes('text/event-stream')) {
-        await res.body?.cancel().catch(() => undefined)
-        throw new Error(`Event stream returned an unexpected content type (${contentType || 'missing'})`)
-    }
-    if (!res.body) throw new Error('Event stream returned no response body')
-    return res
 }
 
 export async function consumeEventStream(
-    res: Response,
+    stream: AsyncIterable<unknown>,
     signal: AbortSignal,
     onEvent: (event: SendblueEvent) => void
 ): Promise<void> {
-    const reader = res.body!.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-        while (!signal.aborted) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-
-            let separator: RegExpExecArray | null
-            while ((separator = /\r?\n\r?\n/.exec(buffer)) !== null) {
-                const block = buffer.slice(0, separator.index)
-                buffer = buffer.slice(separator.index + separator[0].length)
-                const parsed = parseSseBlock(block)
-                if (parsed) onEvent(parsed)
-            }
-        }
-    } finally {
-        reader.releaseLock()
-    }
-}
-
-function parseSseBlock(block: string): SendblueEvent | null {
-    const data: string[] = []
-    for (const line of block.split(/\r?\n/)) {
-        if (line.startsWith('data:')) data.push(line.slice(5).trimStart())
-    }
-    if (!data.length) return null
-    try {
-        const parsed = JSON.parse(data.join('\n')) as Partial<SendblueEvent>
-        if (
-            parsed.version !== 1 ||
-            typeof parsed.id !== 'string' ||
-            parsed.id.length === 0 ||
-            typeof parsed.type !== 'string' ||
-            !(EVENT_TYPES as readonly string[]).includes(parsed.type) ||
-            !validDate(parsed.occurred_at) ||
-            !parsed.data ||
-            typeof parsed.data !== 'object' ||
-            Array.isArray(parsed.data)
-        ) return null
-        return parsed as SendblueEvent
-    } catch {
-        return null
+    for await (const value of stream) {
+        if (signal.aborted) return
+        if (isSendblueEvent(value)) onEvent(value)
     }
 }
 

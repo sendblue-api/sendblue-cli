@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { acceptEvent, consumeEventStream, recoverEvents } from '../dist/lib/events.js'
+import { acceptEvent, connectEventStream, consumeEventStream, eventCursorPath, recoverEvents } from '../dist/lib/events.js'
 
 function cursor() {
     return {
@@ -28,25 +28,79 @@ test('deduplicates by event ID and advances only the matching domain watermark',
     assert.equal(state.contacts_created_at, '2026-08-16T00:00:00.000Z')
 })
 
-test('parses version-one events while ignoring control and malformed frames', async () => {
-    const encoder = new TextEncoder()
-    const chunks = [
-        'event: ready\ndata: {"status":"OK"}\n\n',
-        'event: message.received\ndata: {"version":2,"id":"old","type":"message.received","occurred_at":"2026-08-16T00:00:00Z","data":{}}\n\n',
-        'event: future.event\ndata: {"version":1,"id":"future","type":"future.event","occurred_at":"2026-08-16T00:00:00Z","data":{}}\n\n',
-        'event: message.received\ndata: {"version":1,"id":"m1","type":"message.received","occurred_at":"2026-08-16T00:00:00Z","data":{"message_id":"m1"}}\n\n'
-    ]
-    const body = new ReadableStream({
-        start(controller) {
-            for (const chunk of chunks) controller.enqueue(encoder.encode(chunk))
-            controller.close()
-        }
-    })
+test('isolates event cursors by API credential rather than ambiguous account email', () => {
+    const base = { apiSecret: 'secret', email: 'owner@example.com' }
+    const first = eventCursorPath({ ...base, apiKey: 'first-key' })
+    const second = eventCursorPath({ ...base, apiKey: 'second-key' })
+    const alias = eventCursorPath({ ...base, apiKey: 'first-key', email: 'company-slug' })
+
+    assert.notEqual(first, second)
+    assert.equal(first, alias)
+})
+
+test('accepts version-one account events while ignoring controls and malformed values', async () => {
+    async function* values() {
+        yield { status: 'OK' }
+        yield { version: 2, id: 'old', type: 'message.received', occurred_at: '2026-08-16T00:00:00Z', data: {} }
+        yield { version: 1, id: 'future', type: 'future.event', occurred_at: '2026-08-16T00:00:00Z', data: {} }
+        yield { version: 1, id: 'm1', type: 'message.received', occurred_at: '2026-08-16T00:00:00Z', data: { message_id: 'm1' } }
+    }
     const seen = []
 
-    await consumeEventStream(new Response(body), new AbortController().signal, (event) => seen.push(event))
+    await consumeEventStream(values(), new AbortController().signal, (event) => seen.push(event))
 
     assert.deepEqual(seen.map((event) => event.id), ['m1'])
+})
+
+test('connects through the published SDK events resource with account credentials and filters', async () => {
+    const originalFetch = global.fetch
+    const requests = []
+    global.fetch = async (input, init) => {
+        const request = input instanceof Request ? input : new Request(input, init)
+        requests.push(request)
+        return new Response(
+            'event: message.received\ndata: {"version":1,"id":"sdk-event","type":"message.received","occurred_at":"2026-08-16T00:00:00Z","data":{"message_id":"m1"}}\n\n',
+            { headers: { 'content-type': 'text/event-stream' } }
+        )
+    }
+
+    const seen = []
+    try {
+        const signal = new AbortController().signal
+        const stream = await connectEventStream(
+            { apiKey: 'key', apiSecret: 'secret', email: 'owner@example.com' },
+            ['message.received'],
+            signal
+        )
+        await consumeEventStream(stream, signal, (event) => seen.push(event))
+    } finally {
+        global.fetch = originalFetch
+    }
+
+    assert.equal(requests.length, 1)
+    assert.equal(new URL(requests[0].url).pathname, '/api/v2/events')
+    assert.equal(new URL(requests[0].url).searchParams.get('types'), 'message.received')
+    assert.equal(requests[0].headers.get('sb-api-key-id'), 'key')
+    assert.equal(requests[0].headers.get('sb-api-secret-key'), 'secret')
+    assert.deepEqual(seen.map((event) => event.id), ['sdk-event'])
+})
+
+test('preserves the CLI compatibility message when the events endpoint is unavailable', async () => {
+    const originalFetch = global.fetch
+    global.fetch = async () => Response.json({ message: 'not found' }, { status: 404 })
+
+    try {
+        await assert.rejects(
+            connectEventStream(
+                { apiKey: 'key', apiSecret: 'secret', email: 'owner@example.com' },
+                [],
+                new AbortController().signal
+            ),
+            /does not have the events endpoint yet/
+        )
+    } finally {
+        global.fetch = originalFetch
+    }
 })
 
 test('recovery queries overlap durable cursors by one minute', async () => {
