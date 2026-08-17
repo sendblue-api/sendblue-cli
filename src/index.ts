@@ -17,6 +17,7 @@ import { showKeysCommand } from './commands/show-keys.js'
 import { totpAddCommand, totpListCommand, totpCodeCommand, totpRemoveCommand } from './commands/totp.js'
 import { sandboxCommand } from './commands/sandbox.js'
 import { getLogo } from './lib/format.js'
+import { eventsCommand } from './commands/events.js'
 
 const require = createRequire(import.meta.url)
 const { version } = require('../package.json')
@@ -96,6 +97,17 @@ program
     .command('lines')
     .description('List phone numbers on your account')
     .action(linesCommand)
+
+program
+    .command('events')
+    .description('Stream account events with automatic gap recovery')
+    .option('--types <types>', 'Comma-separated event types')
+    .option('--since <timestamp>', 'Recover durable events from an ISO 8601 timestamp')
+    .option('--jsonl', 'Print one JSON event per line')
+    .option('--include-control', 'Include stream connection state records (useful for integrations)')
+    .option('--no-recover', 'Skip message/contact/line/verification catch-up')
+    .option('--once', 'Run recovery snapshots and exit without holding the stream open')
+    .action(eventsCommand)
 
 const webhooks = program
     .command('webhooks')

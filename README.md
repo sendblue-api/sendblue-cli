@@ -103,6 +103,21 @@ sendblue messages --inbound
 | `--outbound` | Show only sent messages |
 | `--inbound` | Show only received messages |
 
+### `sendblue events`
+
+Stream live account activity through the official `sendblue` SDK's authenticated SSE resource. The CLI reconnects automatically, stores a per-credential cursor under `~/.sendblue/`, deduplicates event IDs, and repairs disconnect gaps from the message/contact/verification recovery queries and line-state snapshot. Recovery deliberately overlaps the saved cursor by one minute to tolerate timestamp ties and read-replica lag.
+
+```bash
+sendblue events
+sendblue events --types message.received,message.updated
+sendblue events --since 2026-08-16T00:00:00Z
+sendblue events --jsonl                  # integrations and desktop plugins
+sendblue events --jsonl --include-control
+sendblue events --once                   # recovery snapshots, then exit
+```
+
+Typing indicators are ephemeral and cannot be recovered after a disconnect. `--include-control` adds `stream.connected`, `stream.disconnected`, `recovery.warning`, and authoritative `lines.snapshot` JSONL records; they are CLI integration records, not Sendblue account event types. A line snapshot is a complete replacement, including an empty array, so integrations can remove stale lines after reconnecting. Recovery warnings are also written to stderr, allowing JSONL consumers to remain machine-readable while surfacing partial recovery failures.
+
 ### `sendblue add-contact <number>`
 
 Add a contact to your account.

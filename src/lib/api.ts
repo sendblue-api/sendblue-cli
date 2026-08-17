@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 
-const API_BASE = process.env.SENDBLUE_API_BASE || 'https://api.sendblue.com'
+export const API_BASE = process.env.SENDBLUE_API_BASE || 'https://api.sendblue.com'
 const SETUP_BASE = process.env.SENDBLUE_SETUP_BASE || 'https://dashboard.sendblue.com'
 
 export interface SetupResponse {
